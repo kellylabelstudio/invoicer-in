@@ -6,11 +6,11 @@ An offline-first Windows desktop invoicing app for Indian GST-registered small b
 
 - Create domestic GST tax invoices in INR with CGST and SGST, CGST and UTGST, or IGST. Add HSN/SAC, units, discounts, percentage cess, reverse-charge status, and place of supply. The app uses decimal arithmetic and saves the PDF and invoice data together.
 - Search the customer address book, apply billing and dispatch details, or save a new customer from an invoice. Issued invoices retain a snapshot of the addresses and amounts.
-- Switch between side-by-side live preview and a full-width form. Choose the freight layout based on the SSKT invoice, or use the standard A4 template. Move and resize fields, adjust table columns and page dimensions, snap to a grid, undo changes, and save named template copies.
+- Switch between side-by-side live preview and a full-width form. Choose the freight layout based on the corrected SSKT invoice with Container fields, ruled address boxes, and right-aligned tax totals, or use the standard A4 template. Move and resize fields, adjust table columns and page dimensions, snap to a grid, undo changes, and save named template copies.
 - Export a CSV invoice register, duplicate existing invoices into drafts, and create a local workspace backup.
 - Opt in to automatic Google Drive uploads of newly issued PDFs. Private uploads use a persistent retry queue. Share an individual invoice when you want anyone with its link to view it.
 
-The freight template follows the supplied SSKT layout and uses fictional data in its editor preview. Supplier names, logos, GSTINs and contacts are configured locally. In Settings, enter bank transfer details and enable the smaller bank QR on each invoice that should carry it. It encodes text for manual bank transfer. The upper invoice QR remains separate.
+The freight template follows the supplied SSKT layout and uses fictional data in its editor preview. Supplier names, logos, GSTINs and contacts are configured locally. In Settings, enter bank transfer details and enable the smaller bank QR on each invoice that should carry it. It encodes text for manual bank transfer. The default freight PDF has one upper-right invoice QR. To adopt the corrected preset after saving an older custom layout, load **Freight · SSKT layout** in the layout editor and select **Save layout**.
 
 ## GST and e-invoicing scope
 

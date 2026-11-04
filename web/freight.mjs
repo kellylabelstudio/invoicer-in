@@ -2,50 +2,51 @@ const box = (label, x, y, w, h, size = 8, extra = {}) =>
   ({ label, x, y, w, h, size, color: '#171717', border: false, ...extra });
 
 const fields = [
-  ['sellerStateCode','State Code',62,107,136], ['sellerState','State Name',206,107,141],
-  ['sellerPan','PAN',62,117,136], ['sellerGstin','GSTIN',206,117,190],
-  ['invoiceNumber','Invoice No',62,148,136], ['invoiceDate','Invoice Date',206,148,133],
-  ['orderNumber','Order No',346,148,131], ['orderDate','Order Date',484,148,123],
-  ['journey','Journey No',62,160,136], ['origin','From',206,160,133],
-  ['destination','To',346,160,131], ['reverseCharge','Reverse Charge',484,160,123],
-  ['rruNumber','RRU No',62,172,136], ['rruSize','RRU Size (FT)',206,172,133],
-  ['rruType','RRU Type',346,172,131], ['rruStatus','RRU Status (L/E)',206,184,250],
-  ['supply','Place Of Supply',62,196,438]
+  ['sellerStateCode','State Code',24,96,150], ['sellerState','State Name',186,96,156],
+  ['sellerPan','PAN',24,108,150], ['sellerGstin','GSTIN',186,108,156],
+  ['invoiceNumber','Invoice No',24,132,150], ['invoiceDate','Invoice Date',186,132,156],
+  ['orderNumber','Order No',349,132,150], ['orderDate','Order Date',511,132,156],
+  ['journey','Journey No',24,151,150], ['origin','From',186,151,156],
+  ['destination','To',349,151,150], ['reverseCharge','Reverse Charge',511,151,156],
+  ['rruNumber','Container No',24,170,150], ['rruSize','Container Size(FT)',186,170,156],
+  ['rruType','Container Type',349,170,150], ['supply','Place Of Supply',511,170,156],
+  ['rruStatus','Container Status (L/E)',186,189,156]
 ];
 
 export const freightTemplate = {
   kind: 'freight',
   width: 792, height: 612,
   blocks: {
-    seller: box('Company name',62,18,538,25,21,{color:'#082a3a'}),
-    tagline: box('Tagline',62,47,538,15,11,{color:'#082a3a'}),
-    logo: box('Logo',688,9,49,53),
-    headerRule: box('Header rule',58,69,689,1,7,{border:true}),
-    pageNumber: box('Page number',604,72,138,10,7,{align:'right'}),
-    recipient: box('ORIGINAL FOR RECIPIENT',596,84,146,10,7,{align:'right'}),
-    heading: box('TAX INVOICE',302,91,180,14,11,{align:'center'}),
-    sender: box('Sender Details',62,96,235,9,8),
-    ...Object.fromEntries(fields.map(([key,label,x,y,w]) => [key, box(label,x,y,w,9,7.5)])),
-    qr: box('Invoice QR',611,101,127,128,7),
-    buyer: box('Name Of Buyer',57,243,338,51,7,{border:true}),
-    shipping: box('Shipped/Dispatch To',395,243,360,51,7,{border:true}),
-    items: box('Line items',58,308,696,77,7,{border:true}),
-    notes: box('Notes and totals in words',62,386,593,63,7.5),
-    paymentQr: box('Bank payment details',663,387,77,71,7),
-    end: box('--- End Of Invoice ---',250,456,284,13,9,{align:'center'}),
-    printDate: box('Print Date',61,522,330,11,7.5),
-    footerRule: box('Footer rule',58,535,696,1,7,{border:true}),
-    footer: box('Registered address and signature',58,537,696,42,7.5,{border:true})
+    seller: box('Company name',24,31,490,19,15,{color:'#00655b',style:'bold'}),
+    tagline: box('Tagline',24,52,490,11,8,{style:'italic'}),
+    logo: box('Logo',654,28,111,45),
+    headerRule: box('Header rule',23,75,743,1,7,{border:true}),
+    pageNumber: box('Page number',627,76,138,8,6.5,{align:'right'}),
+    recipient: box('ORIGINAL FOR RECIPIENT',611,85,154,9,7,{align:'right',style:'bold'}),
+    heading: box('TAX INVOICE',306,78,176,16,13,{align:'center',style:'bold'}),
+    sender: box('Sender Details',24,82,235,11,8,{style:'bold'}),
+    ...Object.fromEntries(fields.map(([key,label,x,y,w]) => [key, box(label,x,y,w,10,6.3)])),
+    qr: box('Invoice QR',678,125,88,88,7,{showLabel:false}),
+    buyer: box('Name Of Buyer',23,218,368,69,6.8,{border:true}),
+    shipping: box('Shipped/Dispatch To',394,218,368,69,6.8,{border:true}),
+    items: box('Line items',23,304,743,53,6.1,{border:true}),
+    totals: box('Tax totals',452,357,314,31,6.6,{border:true}),
+    notes: box('Notes and totals in words',23,363,418,74,7),
+    paymentQr: box('Bank payment details',670,395,85,73,7),
+    end: box('--- End Of Invoice ---',250,484,292,11,7.5,{align:'center',style:'bold'}),
+    footerRule: box('Footer rule',23,499,743,1,7,{border:true}),
+    printDate: box('Print Date',23,502,330,9,6.7),
+    footer: box('Registered office and signature',23,513,743,34,6.6)
   },
   columns: {}
 };
 
-const common = [['number','Sr. No.',.049],['description','Item Code & Description',.238],
-  ['hsn','HSN / SAC Code',.071],['quantity','Quantity / UOM',.071],['price','Unit Price (Rs.)',.080],
-  ['taxable','Taxable Value (Rs.)',.091]];
-export const freightColumns = [...common, ['cgstRate','CGST %',.059],['cgstValue','CGST Value (Rs.)',.071],
-  ['sgstRate','SGST %',.061],['sgstValue','SGST Value (Rs.)',.070],['igstRate','IGST %',.120],['igstValue','IGST Value (Rs.)',.141],
-  ['cessRate','CESS %',.049],['cessValue','CESS Value (Rs.)',.081]];
+const common = [['number','Sr. No.',.036],['description','Item Code & Description',.341],
+  ['hsn','HSN/ SAC\nCode',.064],['quantity','Quantity\nUOM',.055],['price','Unit Price\n(Rs.)',.082],
+  ['taxable','Taxable Value\n(Rs.)',.083]];
+export const freightColumns = [...common, ['cgstRate','CGST %',.040],['cgstValue','CGST\nValue (Rs.)',.076],
+  ['sgstRate','SGST %',.040],['sgstValue','SGST\nValue (Rs.)',.074],['igstRate','IGST %',.080],['igstValue','IGST\nValue (Rs.)',.150],
+  ['cessRate','CESS %',.038],['cessValue','CESS\nValue (Rs.)',.075]];
 
 function partyLines(label, party = {}) {
   const [first, ...rest] = (party.address || '').split(/\r?\n/);
@@ -77,12 +78,14 @@ export function freightPages(data, quote, template, qr, paymentQr, measure, stri
   const totalPortions = portions.reduce((sum, v) => sum + v, 0);
   const widths = portions.map(v => b.items.w * v / totalPortions);
   const size = b.items.size;
-  const leading = size * 1.22;
-  const headings = columns.map(([,label], i) => wrap(label.replace('SGST',subTax),widths[i]-5,size,measure));
-  const headerHeight = Math.max(1,...headings.map(lines=>lines.length))*leading + 5;
+  const ruled = Boolean(b.totals);
+  const leading = size * (ruled ? 1.14 : 1.22);
+  const headings = columns.map(([,label], i) => wrap(label.replace('SGST',subTax),widths[i]-5,size,
+    (value, fontSize) => measure(value, fontSize, ruled ? 'bold' : undefined)));
+  const headerHeight = Math.max(1,...headings.map(lines=>lines.length))*leading + (ruled ? 2.5 : 5);
   const totalsHeight = 31;
   const capacity = b.items.h - headerHeight;
-  const finalCapacity = capacity - totalsHeight;
+  const finalCapacity = ruled ? capacity : capacity - totalsHeight;
   if (finalCapacity < leading + 5) throw new Error('The item table needs room for a row and the totals.');
   const rows = (data.items ?? []).map((item,i) => {
     const values = quote.lines[i] ?? {};
@@ -92,7 +95,7 @@ export function freightPages(data, quote, template, qr, paymentQr, measure, stri
       ...(split ? [`${gst/2}%`,money(values.cgst),`${gst/2}%`,money(values.sgst)] : [`${gst}%`,money(values.igst)]),
       `${item.cessRate || 0}%`,money(values.cess)];
     const lines=cells.map((v,c)=>wrap(v,widths[c]-5,size,measure));
-    const height=Math.max(1,...lines.map(v=>v.length))*leading+5;
+    const height=Math.max(1,...lines.map(v=>v.length))*leading+(ruled?4:5);
     if (strict && height>finalCapacity) throw new Error('An item is too tall for the table. Enlarge the table or shorten the item.');
     return {lines,height:Math.min(height,finalCapacity)};
   });
@@ -117,26 +120,38 @@ export function freightPages(data, quote, template, qr, paymentQr, measure, stri
     const ink='#242424';
     const rect=(x,y,w,h,fill=null,stroke=ink)=>ops.push({type:'rect',x,y,w,h,fill,stroke});
     const line=(x,y,x2,y2)=>ops.push({type:'line',x,y,x2,y2,color:ink});
-    const text=(x,y,value,size,color=ink)=>{if(value) ops.push({type:'text',x,y,value,size,color});};
+    const text=(x,y,value,size,color=ink,style)=>{if(value) ops.push({type:'text',x,y,value,size,color,style});};
     function section(box,values,{ padding=0, label=box.label }={}) {
       const gap=box.size*1.14;
-      const content=values.flatMap(value=>wrap(value,box.w-padding*2,box.size,measure));
+      const width=(value,size)=>measure(value,size,box.style);
+      const content=values.flatMap(value=>wrap(value,box.w-padding*2,box.size,width));
       const max=Math.floor((box.h-padding)/gap+0.06);
       if(strict && content.length>max) throw new Error(`“${label}” needs more room. Enlarge the field or shorten the text.`);
       content.slice(0,max).forEach((value,i)=>{
-        const remaining=box.w-padding*2-measure(value,box.size);
+        const remaining=box.w-padding*2-width(value,box.size);
         const shift=box.align==='center'?remaining/2:box.align==='right'?remaining:0;
-        text(box.x+padding+Math.max(0,shift),box.y+padding+box.size+i*gap,value,box.size,box.color);
+        text(box.x+padding+Math.max(0,shift),box.y+padding+box.size+i*gap,value,box.size,box.color,box.style);
       });
     }
     const single=(key,value)=>section(b[key],[value]);
-    const field=(key,value)=>single(key,`${b[key].label}: ${value ?? ''}`);
+    const field=(key,value)=>{
+      const box=b[key];
+      const label=box.label+':';
+      const width=measure(label+' ',box.size,'bold');
+      if(!ruled || width+measure(value || '',box.size)>box.w) {
+        single(key,`${label} ${value ?? ''}`);
+        return;
+      }
+      text(box.x,box.y+box.size,label,box.size,box.color,'bold');
+      text(box.x+width,box.y+box.size,value,box.size,box.color);
+    };
     function qrBox(box,matrix,label,minSize) {
       if(!matrix?.length)return;
-      const side=Math.min(box.w,box.h-box.size-2);
-      if(strict && (side<minSize || measure(label,box.size)>box.w)) throw new Error(`Enlarge the ${label} area so the code and label fit.`);
+      const caption=box.showLabel!==false;
+      const side=Math.min(box.w,box.h-(caption?box.size+2:0));
+      if(strict && (side<minSize || (caption&&measure(label,box.size)>box.w))) throw new Error(`Enlarge the ${label} area so the code and label fit.`);
       ops.push({type:'qr',x:box.x+(box.w-side)/2,y:box.y,w:side,h:side,value:matrix});
-      text(box.x+Math.max(0,(box.w-measure(label,box.size))/2),box.y+side+box.size+1,label,box.size,box.color);
+      if(caption)text(box.x+Math.max(0,(box.w-measure(label,box.size))/2),box.y+side+box.size+1,label,box.size,box.color);
     }
 
     single('seller',seller.name);
@@ -161,46 +176,114 @@ export function freightPages(data, quote, template, qr, paymentQr, measure, stri
     for(const [key,party] of [['buyer',data.buyer],['shipping',data.ship?.address?data.ship:data.buyer]]) {
       const block=b[key];
       if(block.border) rect(block.x,block.y,block.w,block.h);
-      section(block,partyLines(block.label,party),{padding:3});
+      const values=partyLines(block.label,party);
+      if(!ruled) {
+        section(block,values,{padding:3});
+        continue;
+      }
+      const rowLeading=block.size*1.15;
+      const rows=values.map((value,i)=>wrap(value,block.w-6,block.size,
+        (value,size)=>measure(value,size,i===0?'bold':undefined)));
+      const contentHeight=rows.reduce((sum,row)=>sum+Math.max(1,row.length)*rowLeading,0);
+      if(strict&&contentHeight>block.h-rows.length) throw new Error(`“${block.label}” needs more room. Enlarge the box or shorten the address.`);
+      const padding=Math.max(1,(block.h-contentHeight)/rows.length);
+      let y=block.y;
+      for(const [i,row] of rows.entries()) {
+        if(y+block.size>block.y+block.h)break;
+        for(const [j,value] of row.entries()) {
+          const baseline=y+block.size+padding/2+j*rowLeading;
+          if(baseline<block.y+block.h)text(block.x+3,baseline,value,block.size,block.color,i===0?'bold':undefined);
+        }
+        y+=Math.max(1,row.length)*rowLeading+padding;
+        if(block.border&&i<rows.length-1&&y<block.y+block.h)line(block.x,y,block.x+block.w,y);
+      }
     }
 
     let y=b.items.y;
-    function tableRow(cells,height) {
+    function tableRow(cells,height,header=false) {
       let x=b.items.x;
       for(const [col,lines] of cells.entries()) {
         if(col)line(x,y,x,y+height);
-        for(const [i,value] of lines.slice(0,Math.floor((height-3)/leading)).entries()) text(x+2.5,y+size+2+i*leading,value,size,b.items.color);
+        const style=header&&ruled?'bold':undefined;
+        const align=ruled?(header?'center':col===1?'left':'right'):'left';
+        for(const [i,value] of lines.slice(0,Math.floor((height-(ruled?1:3))/leading)).entries()) {
+          const remaining=Math.max(0,widths[col]-5-measure(value,size,style));
+          const shift=align==='center'?remaining/2:align==='right'?remaining:0;
+          text(x+2.5+shift,y+size+(ruled?1:2)+i*leading,value,size,b.items.color,style);
+        }
         x+=widths[col];
       }
       y+=height;
       line(b.items.x,y,b.items.x+b.items.w,y);
     }
-    tableRow(headings,headerHeight);
+    if(ruled)rect(b.items.x,y,b.items.w,headerHeight,'#e2ebe8',null);
+    tableRow(headings,headerHeight,true);
     for(const row of page)tableRow(row.lines,row.height);
+    if(ruled) {
+      const gap=b.items.y+b.items.h-y;
+      const blanks=Math.min(Math.max(1,3-page.length),Math.max(1,Math.floor(gap/(leading+2))));
+      if(gap>.05)for(let i=0;i<blanks;i++)tableRow(columns.map(()=>[]),gap/blanks);
+    }
+    const tableEnd=y;
     if(final) {
       const t=quote.totals;
       const totals=[['Total Taxable Value',t.taxable],['Total GST Value',(t.cgst||0)+(t.sgst||0)+(t.igst||0)+(t.cess||0)],['Total Invoice Value',t.total]];
-      const splitX=b.items.x+b.items.w*.83;
-      for(const [label,value] of totals) {
-        const rowHeight=totalsHeight/3;
-        const width=measure(label,size);
-        text(splitX-width-5,y+size+1,label,size,b.items.color);
-        text(splitX+5,y+size+1,money(value),size,b.items.color);
-        line(splitX,y,splitX,y+rowHeight);
-        y+=rowHeight;
-        line(b.items.x,y,b.items.x+b.items.w,y);
+      const box=b.totals;
+      if(box) {
+        const height=box.h/totals.length;
+        if(strict&&height<box.size+2) throw new Error('Enlarge the tax totals box so all three rows fit.');
+        if(box.border)rect(box.x,box.y,box.w,box.h);
+        for(const [i,[label,value]] of totals.entries()) {
+          const top=box.y+i*height;
+          const baseline=top+(height+box.size)/2-1;
+          const numeric=money(value);
+          text(box.x+3,baseline,label+':',box.size,box.color,'bold');
+          text(box.x+box.w-3-measure(numeric,box.size,'bold'),baseline,numeric,box.size,box.color,'bold');
+          if(i&&box.border)line(box.x,top,box.x+box.w,top);
+        }
+      } else {
+        const splitX=b.items.x+b.items.w*.83;
+        for(const [label,value] of totals) {
+          const rowHeight=totalsHeight/3;
+          const width=measure(label,size);
+          text(splitX-width-5,y+size+1,label,size,b.items.color);
+          text(splitX+5,y+size+1,money(value),size,b.items.color);
+          line(splitX,y,splitX,y+rowHeight);
+          y+=rowHeight;
+          line(b.items.x,y,b.items.x+b.items.w,y);
+        }
       }
-      const notes=[`Total Rs: ${amount(t.total)}`,`Total in words Rs: ${indianWords(t.total)}`,
-        data.notes&&`Note: ${data.notes}`,data.transactionType&&`Transaction Type: ${data.transactionType}`,
-        data.paymentTerms&&`Payment Term: ${data.paymentTerms}`,data.insurance&&`Insurance By: ${data.insurance}`,
-        data.irn&&`IRN: ${data.irn}`].filter(Boolean);
+      const notes=[`Total Rs: ${ruled?money(t.total):amount(t.total)}`,`Total in words Rs: ${indianWords(t.total)}`,
+        data.transactionType&&`Transaction Type: ${data.transactionType}`,
+        data.paymentTerms&&`Payment Term: ${data.paymentTerms}`,data.notes&&`Note: ${data.notes}`,
+        data.insurance&&`Insurance By: ${data.insurance}`,data.irn&&`IRN: ${data.irn}`].filter(Boolean);
       section(b.notes,notes);
       qrBox(b.paymentQr,paymentQr,b.paymentQr.label,55);
       single('end',b.end.label);
     }
-    if(b.items.border)rect(b.items.x,b.items.y,b.items.w,y-b.items.y);
+    if(b.items.border)rect(b.items.x,b.items.y,b.items.w,(ruled?tableEnd:y)-b.items.y);
     field('printDate',displayDate(data.printDate || data.date));
     const footer=b.footer;
+    if(ruled) {
+      const labelWidth=72;
+      const rightWidth=152;
+      const details=[['Registered Office',seller.address],['Website',seller.website],['GSTIN',seller.gstin]];
+      const gap=footer.size*1.2;
+      const available=footer.w-rightWidth-labelWidth-12;
+      let rowY=footer.y;
+      for(const [label,value] of details) {
+        const lines=wrap(value,available,footer.size,measure);
+        const height=Math.max(1,lines.length)*gap;
+        if(strict&&rowY+height>footer.y+footer.h+.1) throw new Error('The registered office footer needs more room.');
+        text(footer.x,rowY+footer.size,label+':',footer.size,footer.color,'bold');
+        for(const [i,part] of lines.entries())text(footer.x+labelWidth,rowY+footer.size+i*gap,part,footer.size,footer.color);
+        rowY+=height;
+      }
+      const right={...footer,x:footer.x+footer.w-rightWidth,w:rightWidth,align:'right'};
+      if(seller.name)section({...right,style:'bold'},[`For ${seller.name}`]);
+      section({...right,y:footer.y+footer.h-gap,h:gap},['Authorised Signatory']);
+      return ops;
+    }
     const first=footer.x+footer.w*.44;
     const second=footer.x+footer.w*.73;
     if(footer.border) {

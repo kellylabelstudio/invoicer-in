@@ -23,7 +23,8 @@ export const defaultTemplate = {
     footer: block('Authorised signatory', 635, 561, 177, 19, 8, false)
   }
 };
-export const templateSections = template => Object.keys((template.kind === 'freight' ? freightTemplate : defaultTemplate).blocks);
+export const templateSections = template => Object.keys((template.kind === 'freight' ? freightTemplate : defaultTemplate).blocks)
+  .filter(key => key!=='totals' || template.kind!=='freight' || template.blocks?.totals);
 
 export function clone(value) { return structuredClone(value); }
 export const amount = (paise = 0) => new Intl.NumberFormat('en-IN', {
@@ -274,7 +275,7 @@ export function toSvg(template, ops, editor = false, selected = '', snap = false
   const out = [`<svg viewBox="0 0 ${template.width} ${template.height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Invoice page preview">`,
     `<rect width="100%" height="100%" fill="white"/>`];
   for (const o of ops) {
-    if (o.type === 'text') out.push(`<text x="${o.x}" y="${o.y}" font-family="Invoice Sans, sans-serif" font-size="${o.size}" fill="${o.color}">${escapeHtml(o.value)}</text>`);
+    if (o.type === 'text') out.push(`<text x="${o.x}" y="${o.y}" font-family="Invoice Sans, sans-serif" font-size="${o.size}" font-weight="${o.style==='bold'?'bold':'normal'}" font-style="${o.style==='italic'?'italic':'normal'}" fill="${o.color}">${escapeHtml(o.value)}</text>`);
     if (o.type === 'rect') out.push(`<rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" fill="${o.fill ?? 'none'}" stroke="${o.stroke ?? 'none'}" stroke-width=".65"/>`);
     if (o.type === 'line') out.push(`<line x1="${o.x}" y1="${o.y}" x2="${o.x2}" y2="${o.y2}" stroke="${o.color}" stroke-width=".65"/>`);
     if (o.type === 'image') out.push(`<image x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" href="${o.value}"/>`);
@@ -307,7 +308,12 @@ export async function makePdf({ pdfLib, fontkit, fontBytes, data, quote, templat
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(fontBytes, {subset:true});
-  const pages = documentPages(data, quote, template, qr, (value, size) => font.widthOfTextAtSize(value,size), {strict:true,paymentQr});
+  const styles = template.kind==='freight' ? {
+    bold:await pdf.embedFont(pdfLib.StandardFonts.HelveticaBold),
+    italic:await pdf.embedFont(pdfLib.StandardFonts.HelveticaOblique)
+  } : {};
+  const face=(value,style)=>styles[style] && /^[\u0020-\u007e\u00a0-\u00ff]*$/.test(value) ? styles[style] : font;
+  const pages = documentPages(data, quote, template, qr, (value, size, style) => face(value,style).widthOfTextAtSize(value,size), {strict:true,paymentQr});
   const logo = data.seller?.logo;
   const image = validLogo(logo)
     ? await (logo.startsWith('data:image/png;') ? pdf.embedPng(logo) : pdf.embedJpg(logo)) : null;
@@ -315,7 +321,7 @@ export async function makePdf({ pdfLib, fontkit, fontBytes, data, quote, templat
     const page = pdf.addPage([template.width,template.height]);
     const fy = y => template.height-y;
     for (const o of ops) {
-      if (o.type === 'text') page.drawText(o.value,{x:o.x,y:fy(o.y),font,size:o.size,color:color(o.color)});
+      if (o.type === 'text') page.drawText(o.value,{x:o.x,y:fy(o.y),font:face(o.value,o.style),size:o.size,color:color(o.color)});
       if (o.type === 'line') page.drawLine({start:{x:o.x,y:fy(o.y)},end:{x:o.x2,y:fy(o.y2)},color:color(o.color),thickness:.65});
       if (o.type === 'rect') page.drawRectangle({x:o.x,y:fy(o.y+o.h),width:o.w,height:o.h,
         ...(o.fill ? {color:color(o.fill)} : {}), ...(o.stroke ? {borderColor:color(o.stroke),borderWidth:.65} : {})});

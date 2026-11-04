@@ -1443,29 +1443,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "invoicer-in"
-version = "0.1.0-beta.2"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "keyring",
- "open",
- "qrcode",
- "rand 0.8.8",
- "reqwest 0.12.28",
- "rusqlite",
- "rust_decimal",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-single-instance",
- "uuid",
-]
-
-[[package]]
 name = "gtk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1853,6 +1830,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4200d433cbd5178df7797c9c2e75b348b728e39631cf14520d1e2fc424201f4"
 dependencies = [
  "cfb",
+]
+
+[[package]]
+name = "invoicer-in"
+version = "0.1.0-beta.3"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "keyring",
+ "open",
+ "qrcode",
+ "rand 0.8.8",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-single-instance",
+ "uuid",
 ]
 
 [[package]]

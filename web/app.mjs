@@ -127,8 +127,8 @@ function draftView() {
   const d=state.draft;
   const customerOptions = [['','Choose a saved customer'],...state.customers.filter(c=>search(state.draftSearch??'',[c.name,c.billing?.gstin,c.email,c.phone]))
     .map(c=>[c.id,`${c.name}${c.billing?.gstin?' · '+c.billing.gstin:''}`])];
-  const shipmentFields = [['order','Order no.'],['orderDate','Order date'],['journey','Journey no.'],['origin','From'],['destination','To'],['container','RRU / container no.'],
-    ['containerSize','RRU size (FT)'],['containerType','RRU type'],['containerStatus','RRU status (L/E)']];
+  const shipmentFields = [['order','Order no.'],['orderDate','Order date'],['journey','Journey no.'],['origin','From'],['destination','To'],['container','Container no.'],
+    ['containerSize','Container size (FT)'],['containerType','Container type'],['containerStatus','Container status (L/E)']];
   const buyerActions=btn('from-draft','Save as customer','subtle');
   const previewBtn=(id,label)=>btn('panel',label,'',`data-id="${id}" aria-pressed="${state.panel===id}"`);
   const editorTabs=[['details','Details'],['items','Line items'],['notes','Notes']];
@@ -253,7 +253,7 @@ function example() {
   };
 }
 const ctx=document.createElement('canvas').getContext('2d');
-const measure=(value,size)=>{ctx.font=`${size}px "Invoice Sans"`;return ctx.measureText(value).width;};
+const measure=(value,size,style)=>{ctx.font=`${style ?? "normal"} ${size}px "Invoice Sans"`;return ctx.measureText(value).width;};
 let lastQR;
 async function qrFor(data, quote) {
   const payload=qrPayload(data,quote.totals);

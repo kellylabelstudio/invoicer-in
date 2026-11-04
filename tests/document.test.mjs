@@ -12,7 +12,7 @@ const fontBytes = await readFile(new URL('../web/assets/DejaVuSans.ttf',import.m
 const item={description:'Domestic freight service',hsn:'996511',quantity:'2',unit:'NOS',unitPrice:'1000',gstRate:'18',cessRate:'0'};
 const line={taxable:200000,cgst:18000,sgst:18000,igst:0,cess:0,total:236000};
 const data={number:'INV-0024',date:'2026-11-04',regime:'split',placeOfSupply:'Maharashtra',placeOfSupplyCode:'27',
-  seller:{name:'Example Freight Studio',address:'12 Sample Lane, Pune 411001',gstin:'27ABCDE1234F1Z5'},
+  seller:{name:'Example Freight Studio',tagline:'Delivery with care.',address:'12 Sample Lane, Pune 411001',gstin:'27ABCDE1234F1Z5'},
   buyer:{name:'Harbour Demo Works',address:'41 Sample Road, Mumbai 400001',state:'Maharashtra',stateCode:'27',gstin:'27AAAAA1111A1Z5'},
   ship:{name:'Harbour Receiving',address:'7 Example Lane, Mumbai 400001'},
   items:[item],origin:'Pune',destination:'Mumbai',container:'DEMO 001',notes:'Thank you for your business.'};
@@ -77,6 +77,14 @@ test('freight layout keeps the invoice QR above the parties and bank QR optional
   checkTemplate(freightTemplate);
   const plain=documentPages(data,quote,freightTemplate,qr,measure,{strict:true})[0];
   assert.equal(plain.filter(o=>o.type==='qr').length,1);
+  assert.ok(plain.some(o=>o.value==='Container No:'));
+  assert.ok(plain.some(o=>o.value==='Registered Office:'));
+  assert.ok(plain.some(o=>o.value==='For Example Freight Studio'));
+  assert.ok(plain.some(o=>o.value==='Delivery with care.' && o.style==='italic'));
+  assert.ok(plain.some(o=>o.type==='rect' && o.fill==='#e2ebe8'));
+  assert.ok(plain.some(o=>o.type==='line' && o.x===freightTemplate.blocks.buyer.x &&
+    o.x2===freightTemplate.blocks.buyer.x+freightTemplate.blocks.buyer.w && o.y>freightTemplate.blocks.buyer.y));
+  assert.ok(plain.some(o=>o.type==='rect' && o.x===freightTemplate.blocks.totals.x && o.y===freightTemplate.blocks.totals.y));
   const bank={holder:'Example Supplier',bank:'Demo Bank',account:'00001234',ifsc:'demo0000001'};
   assert.match(paymentQrPayload(bank),/Account number: 00001234/);
   assert.match(paymentQrPayload(bank),/IFSC: DEMO0000001/);
@@ -99,7 +107,7 @@ test('freight pages keep every row and print the totals only on the final page',
   const pages=documentPages({...data,items},{lines:items.map(()=>line),totals:line},freightTemplate,qr,measure,{strict:true,paymentQr:qr});
   assert.ok(pages.length>1);
   assert.equal(pages.flat().filter(o=>o.value?.startsWith?.('Freight item ')).length,17);
-  assert.equal(pages.flat().filter(o=>o.value==='Total Invoice Value').length,1);
-  assert.ok(pages.at(-1).some(o=>o.value==='Total Invoice Value'));
+  assert.equal(pages.flat().filter(o=>o.value==='Total Invoice Value:').length,1);
+  assert.ok(pages.at(-1).some(o=>o.value==='Total Invoice Value:'));
   assert.equal(pages.flat().filter(o=>o.value==='Bank payment details').length,1);
 });
