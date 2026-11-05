@@ -1,6 +1,8 @@
 import { amount, checkTemplate, clone, csvRegister, defaultTemplate, displayDate, documentPages, escapeHtml as e,
   freightTemplate, makePdf, paymentQrPayload, qrPayload, resizePaper, templateSections, toSvg, validLogo } from './document.mjs';
 import { freightColumns } from './freight.mjs';
+import { appearanceMode, appearanceModes, setAppearance } from './appearance.mjs';
+import { gstStates } from './gst-states.mjs';
 
 const root = document.querySelector('#app');
 const toastNode = document.querySelector('#toast');
@@ -76,22 +78,36 @@ function heading(title,subtitle,actions='',eyebrow='Workspace') {
 function panelTitle() {
   return {invoices:'Invoices',draft:'Invoice editor',customers:'Customers',contact:'Customer details',layout:'Layout editor',settings:'Settings'}[state.view];
 }
+function appearanceControls() {
+  return `<div class="appearance-options" role="group" aria-label="Appearance preference">${appearanceModes.map(([mode,label,glyph])=>
+    `<label><input type="radio" name="appearance" value="${mode}" data-appearance ${mode===appearanceMode()?'checked':''}>
+    <span>${icon(glyph)}${label}</span></label>`).join('')}</div>`;
+}
 function frame(content) {
   const nav = [['invoices','Invoices','invoice'],['customers','Customers','people'],['layout','Layout editor','layout'],['settings','Settings','settings']];
-  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">${icon('invoice')}</div><div class="brand-text"><strong>Invoicer-in</strong><span>Kelly Label Studio</span></div></div>
+  const current = appearanceMode();
+  const currentGlyph = appearanceModes.find(([mode])=>mode===current)[2];
+  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">${icon('invoice')}</div>
+    <div class="brand-text"><strong>Invoicer-in</strong><span>Kelly Label Studio</span></div></div>
     <div class="nav-caption">Workspace</div><nav class="nav" aria-label="Workspace">${nav.map(([id,title,glyph]) => {
       const active = state.view===id || id==='invoices'&&state.view==='draft' || id==='customers'&&state.view==='contact';
       return `<button type="button" data-action="nav" data-id="${id}" title="${title}" aria-label="${title}" ${active?'aria-current="page"':''}>${icon(glyph)}<span class="label">${title}</span></button>`;
-    }).join('')}</nav><div class="sidebar-footer">${icon('lock')}<span>Stored on this PC</span></div></aside>
-    <main class="workspace"><div class="topbar"><div class="crumb">Workspace <span>›</span> <strong>${panelTitle()}</strong></div>
-      <span class="pill">${icon(state.drive.connected?'cloud':'lock')}${state.drive.connected?'Drive connected':'Local workspace'}</span></div>${content}</main></div>`;
+    }).join('')}</nav>
+    <div class="sidebar-footer">${icon('lock')}<span><strong>India GST workspace</strong><small>Records stored on this PC</small></span></div></aside>
+    <main class="workspace"><div class="topbar">
+      <div class="crumb"><span>Workspace</span>${icon('chevron')}<strong>${panelTitle()}</strong></div>
+      <div class="topbar-actions"><span class="pill workspace-status">${icon(state.drive.connected?'cloud':'lock')}${state.drive.connected?'Drive connected':'Local workspace'}</span>
+        <label class="appearance-quick" title="Change appearance"><svg class="ico" aria-hidden="true"><use data-appearance-icon href="#i-${currentGlyph}"></use></svg>
+        <select aria-label="Toolbar appearance" data-appearance>${appearanceModes.map(([mode,label])=>
+          `<option value="${mode}" ${mode===current?'selected':''}>${label}</option>`).join('')}</select></label></div>
+      </div>${content}</main></div>`;
 }
 function invoiceRows() {
   const rows = state.invoices.filter(row=>search(state.filter,[row.number,row.buyer,row.day,row.driveStatus]));
   if (!rows.length) return `<div class="empty">${icon('invoice')}<h2>${state.filter?'No matching invoices':'No invoices yet'}</h2>
     <p>${state.filter?'Try an invoice number, customer or date.':'Create a tax invoice or import records from the Python app.'}</p>${
       state.filter?'':btn('new','New invoice','primary','','plus')}</div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Date</th><th>Total</th><th>Drive</th><th><span class="muted">Actions</span></th></tr></thead><tbody>${rows.map(r=> {
+  return `<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Date</th><th class="money">Total</th><th>Drive</th><th>Actions</th></tr></thead><tbody>${rows.map(r=> {
     const attr=`data-id="${e(r.id)}"`;
     const status = r.driveStatus;
     const tag = !status ? '—' : `<span title="${e(r.driveMessage)}" class="tag ${status==='Uploaded'?'ok':status==='Failed'?'error':'warn'}">${e(status)}</span>`;
@@ -104,13 +120,28 @@ function invoiceRows() {
 }
 function invoicesView() {
   const total = state.invoices.reduce((sum,r)=>sum+r.total,0);
-  const queued=state.invoices.filter(r=>['Queued','Uploading','Retrying','Failed'].includes(r.driveStatus)).length;
-  return heading('Invoices','Create, find and export Indian GST tax invoices.',btn('new',state.draft?'Open draft':'New invoice','primary','','plus'),'GST billing')+
-    `<div class="stats"><div class="card stat"><div class="k">Invoices on this PC</div><strong>${state.invoices.length}</strong></div>
-    <div class="card stat"><div class="k">Invoice register total</div><strong>${amount(total)}</strong></div>
-    <div class="card stat"><div class="k">Drive uploads pending or failed</div><strong>${queued}</strong></div></div>
-    <section class="card"><div class="listbar">${searchBox('invoiceSearch',state.filter,'Search invoices')}
-    <div class="actions">${btn('register','Export CSV')}${btn('import','Import from Python')}</div></div><div id="invoice-rows">${invoiceRows()}</div></section>`;
+  const queued = state.invoices.filter(r=>['Queued','Uploading','Retrying'].includes(r.driveStatus)).length;
+  const metrics = [
+    ['invoice','Invoices issued',state.invoices.length,'All invoices in your register'],
+    ['coins','Total invoiced',amount(total),'Across issued invoices'],
+    ['people','Saved customers',state.customers.length,'Ready to reuse on a new invoice']
+  ];
+  return heading('Invoices','Create GST invoices and find every invoice you’ve issued.',
+    btn('new',state.draft?'Open draft':'New invoice','primary','','plus'),'India · GST workspace')+
+    `<div class="stats">${metrics.map(([glyph,label,value,caption],index)=>
+      `<section class="card stat ${index===0?'stat-featured':''}"><div class="stat-head"><span class="stat-icon">${icon(glyph)}</span><span class="k">${label}</span></div>
+        <strong>${value}</strong><p>${caption}</p></section>`).join('')}</div>
+    <section class="card register-card"><div class="register-head"><div><h2>Invoice register</h2><p class="muted">Find invoices, export PDFs and manage Drive uploads.</p></div>
+      ${queued?`<span class="tag warn">${icon('cloud')}${queued} awaiting upload</span>`:''}</div>
+      <div class="listbar">${searchBox('invoiceSearch',state.filter,'Search by invoice or customer')}
+      <div class="actions">${btn('register','Export CSV') }${btn('import','Import from Python','subtle')}</div></div>
+      <div id="invoice-rows">${invoiceRows()}</div></section>`;
+}
+function placeOfSupply(draft) {
+  const code = draft.placeOfSupplyCode ?? '';
+  const options = [['','Select state or union territory'], ...[...gstStates].map(([id,name])=>[id,`${name} · ${id}`])];
+  if(code && !gstStates.has(code)) options.push([code, `${draft.placeOfSupply || 'Saved place of supply'} · ${code}`]);
+  return select('placeOfSupplyCode','Place of supply',code,options);
 }
 function partyGrid(prefix,data={}) {
   return `<div class="grid">${partyFields.map(([key,label]) => field(`${prefix}.${key}`,label,data[key],key==='address'?'textarea':key==='email'?'email':key==='phone'?'tel':'text',key==='stateCode'?'maxlength="2" inputmode="numeric"':'maxlength="250"')).join('')}</div>`;
@@ -131,24 +162,25 @@ function draftView() {
     ['containerSize','Container size (FT)'],['containerType','Container type'],['containerStatus','Container status (L/E)']];
   const buyerActions=btn('from-draft','Save as customer','subtle');
   const previewBtn=(id,label)=>btn('panel',label,'',`data-id="${id}" aria-pressed="${state.panel===id}"`);
-  const editorTabs=[['details','Details'],['items','Line items'],['notes','Notes']];
+  const editorTabs=[['details','Details'],['customer','Customer'],['items','Line items'],['notes','Notes']];
   const tabs=editorTabs.map(([key,label])=>btn('editor-tab',label,'subtle',`data-id="${key}" aria-pressed="${state.editorTab===key}"`)).join('');
   const hide=key=>state.editorTab===key?'':'hidden';
-  return heading('Invoice editor','Choose a customer, add items and check the printed page.','','Draft invoice')+
+  return heading('Invoice editor','Add your invoice details, choose a customer and review the PDF.','',`Draft · ${e(d.number)}`)+
     `<div class="editor-command"><div class="segment" aria-label="Editor view">${previewBtn('form','Form')}${previewBtn('preview','Preview')}</div>
-      <div class="actions">${btn('preview-mode',state.splitView?'Hide live preview':'Show live preview','preview-mode','','layout')}${btn('save-draft','Save draft','','','save')}${btn('discard','Discard draft','subtle danger')}${btn('issue','Issue invoice','primary',state.locked?'disabled':'','save')}</div></div>
+      <div class="actions">${state.panel==='form'?btn('preview-mode',state.splitView?'Hide live preview':'Show live preview','preview-mode','','layout'):''}${btn('save-draft','Save draft','','','save')}${btn('discard','Discard draft','subtle danger')}${btn('issue','Issue invoice','primary',state.locked?'disabled':'','save')}</div></div>
     <div class="editor" data-panel="${state.panel}" data-preview="${state.splitView?'split':'form'}"><div class="pane form panel-list" id="draft-form">
     <nav class="editor-tabs" aria-label="Invoice sections">${tabs}</nav><div class="panel-list" ${hide('details')}>
     ${!state.settings.seller?.gstin?`<p class="notice">Set up your supplier GSTIN and address in Settings before issuing your first invoice.</p>`:''}
     ${section('Invoice details',`<div class="grid">${field('number','Invoice number',d.number,'text','maxlength="16"')+field('date','Invoice date',d.date,'date')+
-      field('placeOfSupply','Place of supply',d.placeOfSupply)+field('placeOfSupplyCode','Place of supply code',d.placeOfSupplyCode,'text','maxlength="2" inputmode="numeric"')+
-      select('regime','GST treatment',d.regime,[['split','CGST + SGST'],['utgst','CGST + UTGST'],['igst','IGST']])+
+      placeOfSupply(d)+
+      select('regime','India GST treatment',d.regime,[['split','CGST + SGST'],['utgst','CGST + UTGST'],['igst','IGST']])+
       toggle('reverseCharge','Reverse charge applies',d.reverseCharge)}</div>`,btn('next-number','Get next number','subtle'))}
+    ${section('Shipment details',`<div class="grid">${shipmentFields.map(([key,label])=>field(key,label,d[key],key==='orderDate'?'date':'text')).join('')}</div>`)}
+    </div><div class="panel-list" ${hide('customer')}>
     ${section('Buyer',`<div class="customer-lookup"><div class="grid">${searchBox('draftCustomerSearch',state.draftSearch??'','Find by name or GSTIN')}
       ${btn('apply-customer','Use customer','subtle')}</div><div id="draft-customer-list">${select('customerId','Saved customer',d.customerId,customerOptions)}</div></div>
-      ${partyGrid('buyer',d.buyer)}</div>`.replace(/<\/div>$/,''),buyerActions)}
+      ${partyGrid('buyer',d.buyer)}`,buyerActions)}
     ${section('Shipping / dispatch',partyGrid('ship',d.ship),btn('same-address','Copy billing address','subtle'))}
-    ${section('Shipment details',`<div class="grid">${shipmentFields.map(([key,label])=>field(key,label,d[key],key==='orderDate'?'date':'text')).join('')}</div>`)}
     </div><div class="panel-list" ${hide('items')}>
     ${section('Line items',lines(d),btn('add-item','Add line','','','plus'))}</div><div class="panel-list" ${hide('notes')}>
     ${section('Notes and payment',`<div class="grid">${field('paymentTerms','Payment terms',d.paymentTerms)+field('insurance','Insurance by',d.insurance)+
@@ -214,13 +246,14 @@ function layoutView() {
 function settingsView() {
   const s=state.settings;
   const connected=state.drive.connected;
-  return heading('Settings','Set up your supplier, e-invoicing workflow, Google Drive and backups.',
+  return heading('Settings','Manage your business details, GST and desktop preferences.',
     btn('save-settings','Save settings','primary','','save'),'Workspace preferences')+
     `<div id="settings-form" class="panel-list">
+    ${section('Appearance',`<div class="appearance-setting"><p class="muted">Auto follows Windows. Light and Dark are saved on this PC.</p>${appearanceControls()}</div>`)}
     ${section('Supplier profile',partyGrid('seller',s.seller)+`<div class="grid">${field('seller.tagline','Tagline',s.seller?.tagline)+field('seller.website','Website',s.seller?.website)}
     <label class="field"><span>Logo (PNG or JPEG)</span><input type="file" name="logo" accept="image/png,image/jpeg"></label></div>
     <div class="swatch">${validLogo(s.seller?.logo)?`<img src="${s.seller.logo}" alt="Supplier logo">${btn('remove-logo','Remove logo','subtle')}`:''}</div>`)}
-    ${section('GST e-invoicing',`<div class="grid">${select('irp','Invoice Registration Portal (IRP)',s.irp,[
+    ${section('India GST e-invoicing',`<div class="grid">${select('irp','Invoice Registration Portal (IRP)',s.irp,[
       ['review','Choose before issuing'],['notRequired','IRP registration does not apply to this workflow'],['external','Bring IRN and signed QR from my IRP workflow']
     ])}</div><p class="muted">Confirm applicability for your business and transactions. The app accepts the official response details you provide.</p>`)}
     ${section('Bank transfer QR',`<p class="notice">Optional. These details are stored on this PC and printed only when you enable the bank QR on an invoice.</p>
@@ -339,7 +372,7 @@ async function openDraft(base=null) {
 function readSettings(form) {
   const next=clone(state.settings);
   for(const input of form.querySelectorAll('input:not([type=file]):not(#drive-form input),select,textarea')) {
-    if(input.name) setByPath(next,input.name,input.type==='checkbox'?input.checked:input.value);
+    if(input.name && !input.matches('[data-appearance]')) setByPath(next,input.name,input.type==='checkbox'?input.checked:input.value);
   }
   return next;
 }
@@ -395,6 +428,10 @@ root.addEventListener('input', event => {
   }
   const value=input.type==='checkbox'?input.checked:input.value;
   if(input.closest('#draft-form') && !state.locked) {
+    if(name==='placeOfSupplyCode') {
+      const previous=state.draft.placeOfSupplyCode;
+      state.draft.placeOfSupply=gstStates.get(value) ?? (value && value===previous ? state.draft.placeOfSupply : '');
+    }
     setByPath(state.draft,name,value);
     queueDraft();
     if(name!=='customerId') {
@@ -420,6 +457,7 @@ root.addEventListener('input', event => {
 });
 root.addEventListener('change', async event => {
   const input=event.target;
+  if(input.matches('[data-appearance]')) {setAppearance(input.value);return;}
   if(state.view==='layout' && input.name==='layoutPreset' && input.value) {
     const choices={freight:freightTemplate,standard:defaultTemplate};
     loadLayout(choices[input.value] ?? state.settings.savedTemplates[input.value].template);
@@ -518,10 +556,14 @@ root.addEventListener('click', async event => {
     } else if(action==='duplicate') {
       if(state.draft && !await confirm('Replace the current draft?','Open a copy of the selected invoice in the editor.','Replace draft')) return;
       await openDraft(await invoke('get_invoice',{id}));
-    } else if(action==='panel') {state.panel=id;render();}
-    else if(action==='editor-tab') {state.editorTab=id;render();}
-    else if(action==='preview-mode') {
+    } else if(action==='panel' || action==='editor-tab') {
+      if(action==='panel') state.panel=id;
+      else state.editorTab=id;
+      render();
+      root.querySelector(`[data-action="${action}"][data-id="${id}"]`).focus({preventScroll:true});
+    } else if(action==='preview-mode') {
       state.splitView=!state.splitView;localStorage.setItem('invoicer-preview-mode',state.splitView?'split':'form');render();
+      root.querySelector('[data-action="preview-mode"]').focus({preventScroll:true});
     }
     else if(action==='save-draft') {await persistDraft();notify('Draft saved.');}
     else if(action==='zoom') {state.zoom=!state.zoom;render();}
@@ -566,7 +608,7 @@ root.addEventListener('click', async event => {
       try {
         const customer=await invoke('save_customer',{value:state.customer});
         state.customers=await invoke('list_customers');
-        if(state.fromDraft) {state.draft.customerId=customer.id;queueDraft();}
+        if(state.fromDraft) {state.draft.customerId=customer.id;state.editorTab='customer';queueDraft();}
         state.view=state.fromDraft?'draft':'customers';render();notify('Customer saved.');
       } finally {button.disabled=false;}
     } else if(action==='remove-customer') {

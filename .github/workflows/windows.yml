@@ -26,6 +26,25 @@ jobs:
       - run: npm run build
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri -- build
+      - name: Verify Start menu shortcut on install and update
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Windows installer was not built.' }
+          $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Invoicer-in.lnk'
+          $shell = New-Object -ComObject WScript.Shell
+          function Install-Invoicer([string[]] $Flags) {
+            $result = Start-Process -FilePath $installer.FullName -ArgumentList $Flags -Wait -PassThru
+            if ($result.ExitCode -ne 0) { throw "Installer exited with $($result.ExitCode)." }
+            if (-not (Test-Path -LiteralPath $link -PathType Leaf)) { throw 'Start menu entry is missing.' }
+            $target = $shell.CreateShortcut($link).TargetPath
+            if ((Split-Path -Leaf $target) -ne 'invoicer-in.exe' -or -not (Test-Path -LiteralPath $target -PathType Leaf)) {
+              throw 'Start menu entry does not point to the installed app.'
+            }
+          }
+          Install-Invoicer -Flags @('/S')
+          Remove-Item -LiteralPath $link
+          Install-Invoicer -Flags @('/S', '/UPDATE')
       - uses: actions/upload-artifact@v4
         with:
           name: invoicer-in-windows-x64
