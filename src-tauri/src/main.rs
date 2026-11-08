@@ -320,6 +320,32 @@ async fn drive_link(
     .map_err(|e| e.to_string())?
 }
 
+#[cfg(windows)]
+fn style_title_bar(window: &tauri::WebviewWindow) {
+    use windows_sys::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR,
+        DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    };
+
+    let Ok(hwnd) = window.hwnd() else { return };
+    let attributes = [
+        (DWMWA_CAPTION_COLOR, 0x00130f0f_u32),
+        (DWMWA_TEXT_COLOR, 0x00f8f8f8_u32),
+        (DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND as u32),
+    ];
+    for (attribute, value) in attributes {
+        // Older Windows versions ignore unsupported DWM attributes.
+        unsafe {
+            DwmSetWindowAttribute(
+                hwnd.0,
+                attribute as u32,
+                std::ptr::from_ref(&value).cast(),
+                std::mem::size_of_val(&value) as u32,
+            );
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -329,6 +355,10 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                style_title_bar(&window);
+            }
             let dir = app.path().app_local_data_dir()?;
             fs::create_dir_all(&dir)?;
             let store = Arc::new(
@@ -367,5 +397,5 @@ fn main() {
             drive_link
         ])
         .run(tauri::generate_context!())
-        .expect("Invoicer-in could not start.");
+        .expect("Invoicer In could not start.");
 }

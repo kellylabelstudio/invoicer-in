@@ -1,7 +1,7 @@
 import { amount, checkTemplate, clone, csvRegister, defaultTemplate, displayDate, documentPages, escapeHtml as e,
   freightTemplate, makePdf, paymentQrPayload, qrPayload, resizePaper, templateSections, toSvg, validLogo } from './document.mjs';
 import { freightColumns } from './freight.mjs';
-import { appearanceMode, appearanceModes, setAppearance } from './appearance.mjs';
+import { appearanceMode, appearanceModes, interfaceSize, interfaceSizes, setAppearance, setInterfaceSize } from './appearance.mjs';
 import { gstStates } from './gst-states.mjs';
 
 const root = document.querySelector('#app');
@@ -88,7 +88,7 @@ function frame(content) {
   const current = appearanceMode();
   const currentGlyph = appearanceModes.find(([mode])=>mode===current)[2];
   return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">${icon('invoice')}</div>
-    <div class="brand-text"><strong>Invoicer-in</strong><span>Kelly Label Studio</span></div></div>
+    <div class="brand-text"><strong>Invoicer In</strong><span>Kelly Label Studio</span></div></div>
     <div class="nav-caption">Workspace</div><nav class="nav" aria-label="Workspace">${nav.map(([id,title,glyph]) => {
       const active = state.view===id || id==='invoices'&&state.view==='draft' || id==='customers'&&state.view==='contact';
       return `<button type="button" data-action="nav" data-id="${id}" title="${title}" aria-label="${title}" ${active?'aria-current="page"':''}>${icon(glyph)}<span class="label">${title}</span></button>`;
@@ -249,7 +249,9 @@ function settingsView() {
   return heading('Settings','Manage your business details, GST and desktop preferences.',
     btn('save-settings','Save settings','primary','','save'),'Workspace preferences')+
     `<div id="settings-form" class="panel-list">
-    ${section('Appearance',`<div class="appearance-setting"><p class="muted">Auto follows Windows. Light and Dark are saved on this PC.</p>${appearanceControls()}</div>`)}
+    ${section('Appearance',`<div class="appearance-setting"><p class="muted">Auto follows Windows. Light and Dark are saved on this PC.</p>${appearanceControls()}</div>
+    <div class="appearance-setting"><p class="muted">Fit more on smaller screens. The app remembers this setting on this PC.</p>${
+      select('interfaceSize','Interface size',interfaceSize(),interfaceSizes.map(value=>[value,`${value}%${value==='100'?' (default)':''}`]))}</div>`)}
     ${section('Supplier profile',partyGrid('seller',s.seller)+`<div class="grid">${field('seller.tagline','Tagline',s.seller?.tagline)+field('seller.website','Website',s.seller?.website)}
     <label class="field"><span>Logo (PNG or JPEG)</span><input type="file" name="logo" accept="image/png,image/jpeg"></label></div>
     <div class="swatch">${validLogo(s.seller?.logo)?`<img src="${s.seller.logo}" alt="Supplier logo">${btn('remove-logo','Remove logo','subtle')}`:''}</div>`)}
@@ -267,7 +269,7 @@ function settingsView() {
       connected?btn('disconnect','Disconnect','subtle'):btn('connect','Connect Google Drive','','','cloud'))}
     ${section('Local data',`<p class="muted">Import your Python invoice and customer history or create a copy of this workspace database.</p>
     ${state.note?`<p class="notice">${e(state.note)}</p>`:''}`,btn('import','Import from Python')+btn('backup','Create backup'))}
-    ${section('About Invoicer-in',`<p>Built by <strong>Kelly Label Studio</strong>.</p>
+    ${section('About Invoicer In',`<p>Built by <strong>Kelly Label Studio</strong>.</p>
       <p class="muted">Open-source GST invoicing for Windows. Licensed under MIT.</p>`)}</div>`;
 }
 function render() {
@@ -372,7 +374,7 @@ async function openDraft(base=null) {
 function readSettings(form) {
   const next=clone(state.settings);
   for(const input of form.querySelectorAll('input:not([type=file]):not(#drive-form input),select,textarea')) {
-    if(input.name && !input.matches('[data-appearance]')) setByPath(next,input.name,input.type==='checkbox'?input.checked:input.value);
+    if(input.name && !input.matches('[data-appearance], [name=interfaceSize]')) setByPath(next,input.name,input.type==='checkbox'?input.checked:input.value);
   }
   return next;
 }
@@ -395,7 +397,7 @@ async function issue() {
     if(data.includePayment && !paymentQrPayload(data.payment)) throw new Error('Complete the bank details in Settings or turn off the payment QR.');
     const quote=await invoke('validate_invoice',{value:data});
     const [qr,paymentQr,bytes]=await Promise.all([qrFor(data,quote),bankQrFor(data),fontBytes()]);
-    if(!globalThis.fontkit) throw new Error('The embedded PDF font library could not load. Reinstall Invoicer-in.');
+    if(!globalThis.fontkit) throw new Error('The embedded PDF font library could not load. Reinstall Invoicer In.');
     const pdf=await makePdf({pdfLib:globalThis.PDFLib,fontkit:globalThis.fontkit,fontBytes:bytes,data,quote,template:activeTemplate(),qr,paymentQr});
     await invoke('issue_invoice',{value:data,pdf:asBase64(pdf)});
     state.draft=null;state.view='invoices';
@@ -458,6 +460,11 @@ root.addEventListener('input', event => {
 root.addEventListener('change', async event => {
   const input=event.target;
   if(input.matches('[data-appearance]')) {setAppearance(input.value);return;}
+  if(input.name==='interfaceSize') {
+    try {await setInterfaceSize(input.value);}
+    catch(error) {input.value=interfaceSize();notify(error.message??error,true);}
+    return;
+  }
   if(state.view==='layout' && input.name==='layoutPreset' && input.value) {
     const choices={freight:freightTemplate,standard:defaultTemplate};
     loadLayout(choices[input.value] ?? state.settings.savedTemplates[input.value].template);
@@ -685,7 +692,7 @@ root.addEventListener('click', async event => {
 
 async function start() {
   if(!globalThis.__TAURI__?.core?.invoke) {
-    root.innerHTML='<div class="splash">Open this workspace from the Invoicer-in desktop app.</div>';
+    root.innerHTML='<div class="splash">Open this workspace from the Invoicer In desktop app.</div>';
     return;
   }
   try {

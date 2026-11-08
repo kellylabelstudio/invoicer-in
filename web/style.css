@@ -273,6 +273,8 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
   font-weight: 650;
 }
 .appearance-setting { display: flex; align-items: center; justify-content: space-between; gap: 13px; flex-wrap: wrap; }
+.appearance-setting + .appearance-setting { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--border); }
+.appearance-setting select { min-width: 135px; }
 .appearance-options { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); }
 .appearance-options label { position: relative; }
 .appearance-options input { position: absolute; width: 1px; height: 1px; min-height: 0; opacity: 0; }

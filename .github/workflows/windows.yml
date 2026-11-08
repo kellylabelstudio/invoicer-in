@@ -26,12 +26,12 @@ jobs:
       - run: npm run build
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri -- build
-      - name: Verify Start menu shortcut on install and update
+      - name: Verify renamed installer, Start menu and app launch
         shell: pwsh
         run: |
           $installer = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
           if (-not $installer) { throw 'Windows installer was not built.' }
-          $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Invoicer-in.lnk'
+          $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Invoicer In.lnk'
           $shell = New-Object -ComObject WScript.Shell
           function Install-Invoicer([string[]] $Flags) {
             $result = Start-Process -FilePath $installer.FullName -ArgumentList $Flags -Wait -PassThru
@@ -41,10 +41,53 @@ jobs:
             if ((Split-Path -Leaf $target) -ne 'invoicer-in.exe' -or -not (Test-Path -LiteralPath $target -PathType Leaf)) {
               throw 'Start menu entry does not point to the installed app.'
             }
+            return $target
           }
-          Install-Invoicer -Flags @('/S')
+          $null = Install-Invoicer -Flags @('/S')
           Remove-Item -LiteralPath $link
-          Install-Invoicer -Flags @('/S', '/UPDATE')
+          $fresh = Install-Invoicer -Flags @('/S', '/UPDATE')
+          $uninstaller = Join-Path (Split-Path -Parent $fresh) 'uninstall.exe'
+          $result = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw 'Could not remove the clean-install fixture.' }
+          Remove-Item -LiteralPath 'HKCU:\Software\Kelly Label Studio\Invoicer In' -Recurse -ErrorAction SilentlyContinue
+
+          $legacyDir = Join-Path $env:RUNNER_TEMP 'Invoicer-in Beta 4 fixture'
+          $legacyExe = Join-Path $legacyDir 'invoicer-in.exe'
+          $legacyProduct = 'HKCU:\Software\Kelly Label Studio\Invoicer-in'
+          $legacyUninstall = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Invoicer-in'
+          $legacyLink = Join-Path ([Environment]::GetFolderPath('Programs')) 'Invoicer-in.lnk'
+          New-Item -ItemType Directory -Path $legacyDir | Out-Null
+          Copy-Item 'src-tauri/target/release/invoicer-in.exe' $legacyExe
+          Copy-Item $installer.FullName (Join-Path $legacyDir 'uninstall.exe')
+          New-Item -Path $legacyProduct -Value $legacyDir -Force | Out-Null
+          New-Item -Path $legacyUninstall -Force | Out-Null
+          Set-ItemProperty -Path $legacyUninstall -Name MainBinaryName -Value 'invoicer-in.exe'
+          Set-ItemProperty -Path $legacyUninstall -Name UninstallString -Value ('"' + (Join-Path $legacyDir 'uninstall.exe') + '"')
+          $oldShortcut = $shell.CreateShortcut($legacyLink)
+          $oldShortcut.TargetPath = $legacyExe
+          $oldShortcut.Save()
+
+          $dataDir = Join-Path $env:LOCALAPPDATA 'com.kellylabelstudio.gstinvoicedesk'
+          New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+          $canary = Join-Path $dataDir 'upgrade-check.txt'
+          Set-Content -LiteralPath $canary -Value 'beta 4 records'
+          $upgraded = Install-Invoicer -Flags @('/S', '/UPDATE')
+          if ($upgraded -ne $legacyExe -or (Test-Path $legacyUninstall) -or (Test-Path $legacyLink)) {
+            throw 'The rename did not migrate the previous installation in place.'
+          }
+          if ((Get-Content -LiteralPath $canary) -ne 'beta 4 records') { throw 'Upgrade changed the data directory.' }
+
+          $app = Start-Process -FilePath $upgraded -PassThru
+          try {
+            for ($attempt = 0; $attempt -lt 60; $attempt++) {
+              $app.Refresh()
+              if ($app.HasExited -or $app.MainWindowTitle -eq 'Invoicer In') { break }
+              Start-Sleep -Milliseconds 500
+            }
+            if ($app.HasExited -or $app.MainWindowTitle -ne 'Invoicer In') { throw 'The renamed desktop window did not open.' }
+          } finally {
+            if (-not $app.HasExited) { Stop-Process -Id $app.Id }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: invoicer-in-windows-x64
@@ -70,5 +113,5 @@ jobs:
         shell: bash
         run: |
           gh release create "$INVOICE_TAG" installer/*-setup.exe \
-            --verify-tag --draft --prerelease --title "Invoicer-in $INVOICE_TAG" \
+            --verify-tag --draft --prerelease --title "Invoicer In $INVOICE_TAG" \
             --notes "Windows x64 beta. See the project README for scope, setup and testing notes."

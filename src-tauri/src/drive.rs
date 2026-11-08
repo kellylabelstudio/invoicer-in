@@ -156,7 +156,7 @@ fn callback(listener: TcpListener, state: &str) -> Result<String> {
                 )
             });
         let (status, text) = if result.as_ref().is_some_and(|r| r.is_ok()) {
-            ("200 OK", "Google sign-in received. Return to Invoicer-in.")
+            ("200 OK", "Google sign-in received. Return to Invoicer In.")
         } else {
             ("400 Bad Request", "Google sign-in could not be completed.")
         };

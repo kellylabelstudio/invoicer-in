@@ -334,7 +334,7 @@ export async function makePdf({ pdfLib, fontkit, fontBytes, data, quote, templat
     }
   }
   pdf.setTitle(`Tax invoice ${data.number}`);
-  pdf.setProducer('Invoicer-in');
+  pdf.setProducer('Invoicer In');
   return pdf.save();
 }
 

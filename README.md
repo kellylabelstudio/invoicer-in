@@ -1,14 +1,15 @@
-# Invoicer-in
+# Invoicer In
 
 An offline-first Windows desktop invoicing app for Indian GST-registered small businesses. Built by **Kelly Label Studio**. It grew out of an invoicing workflow developed with **SSKT Logistics**. The app uses a Tauri desktop shell, a Rust core, SQLite, and a Fluent-inspired interface.
 
 ## Windows beta
-Extract the beta ZIP and run the setup executable in `Windows/`. Open **Invoicer-in** from the Windows Start menu.
+Extract the beta ZIP and run the setup executable in `Windows/`. Open **Invoicer In** from the Windows Start menu.
 
 
 - Create domestic GST tax invoices in INR with CGST and SGST, CGST and UTGST, or IGST. Add HSN/SAC, units, discounts, percentage cess, reverse-charge status, and place of supply. The app uses decimal arithmetic and saves the PDF and invoice data together.
 - Search the customer address book, apply billing and dispatch details, or save a new customer from an invoice. Issued invoices retain a snapshot of the addresses and amounts.
 - Choose Auto, Light, or Dark in the toolbar or Settings. Auto follows Windows appearance.
+- Set **Interface size** in **Settings → Appearance** to 90%, 80%, or 75% to fit more of the workspace on a small screen. Choose 100% to restore the default size.
 - Switch between side-by-side live preview and a full-width form. Choose the freight layout based on the corrected SSKT invoice with Container fields, ruled address boxes, and right-aligned tax totals, or use the standard A4 template. Move and resize fields, adjust table columns and page dimensions, snap to a grid, undo changes, and save named template copies.
 - Export a CSV invoice register, duplicate existing invoices into drafts, and create a local workspace backup.
 - Opt in to automatic Google Drive uploads of newly issued PDFs. Private uploads use a persistent retry queue. Share an individual invoice when you want anyone with its link to view it.
@@ -37,7 +38,7 @@ Build a Windows x64 installer with `npm run tauri -- build`. The setup executabl
 ## Configure Google Drive
 
 1. In your Google Cloud project, enable the Google Drive API and configure the OAuth consent screen. If the app is in testing, add the Google account you want to use as a test user.
-2. Create an OAuth client of type **Desktop app**. In Invoicer-in, open **Settings → Google Drive** and enter the desktop client ID and secret there.
+2. Create an OAuth client of type **Desktop app**. In Invoicer In, open **Settings → Google Drive** and enter the desktop client ID and secret there.
 3. Select **Connect Google Drive**, then grant access in the system browser. Once connected, enable **Automatically upload newly issued invoices** and save the settings.
 4. Issue a fictional test invoice, check that it reaches **Uploaded** in the register, and check the file's permissions in Drive. **Drive link** copies the existing URL. **Share** explicitly changes the selected file to anyone-with-the-link read access. Remove that permission in Drive to revoke it.
 
