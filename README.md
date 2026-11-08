@@ -1,4 +1,4 @@
-# Invoicer-in
+# Invoicer In
 
 An offline-first Windows desktop app for Indian GST invoicing, built by **Kelly Label Studio**.
 
