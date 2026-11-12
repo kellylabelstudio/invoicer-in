@@ -719,13 +719,11 @@ async function start() {
     state.exampleQr=await invoke('encode_qr',{payload:qrPayload(example(),{total:177000})});
     render();
     const desktopWindow=globalThis.__TAURI__?.window?.getCurrentWindow();
-    let closeReady=false;
     await desktopWindow?.onCloseRequested?.(async event=>{
-      if(closeReady)return;
       event.preventDefault();
       if(state.locked){notify('Finish the current operation before closing.');return;}
-      try {await persistDraft();closeReady=true;await desktopWindow.close();}
-      catch(error){closeReady=false;notify(`Save the draft before closing. ${error.message??error}`,true);}
+      try {await persistDraft();await desktopWindow.destroy();}
+      catch(error){notify(`Save the draft before closing. ${error.message??error}`,true);}
     });
     setInterval(async () => {
       if(state.view!=='invoices') return;

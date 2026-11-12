@@ -85,6 +85,10 @@ jobs:
               Start-Sleep -Milliseconds 500
             }
             if ($app.HasExited -or $app.MainWindowTitle -ne 'Invoicer In') { throw 'The renamed desktop window did not open.' }
+            Start-Sleep -Milliseconds 2000
+            if (-not $app.CloseMainWindow() -or -not $app.WaitForExit(15000)) {
+              throw 'The desktop window did not close after saving its draft.'
+            }
           } finally {
             if (-not $app.HasExited) { Stop-Process -Id $app.Id }
           }
