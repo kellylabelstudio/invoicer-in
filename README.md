@@ -6,15 +6,31 @@ An offline-first Windows desktop invoicing app for Indian GST-registered small b
 Extract the beta ZIP and run the setup executable in `Windows/`. Open **Invoicer In** from the Windows Start menu.
 
 
+- Choose the computer, sun or moon in the toolbar to follow Windows, use Light, or use Dark. Dark uses neutral black surfaces, white text and purple accents. Settings also offers Beautiful and Performance modes and Comfortable or Compact spacing.
+- Reuse saved services and their default descriptions, HSN/SAC, units, rates and prices. Adjust them per invoice.
+- Set a payment due date and record received payments, including partial payments. The register shows outstanding amounts and overdue invoices. Recording payments uses transaction references and prevents overpayment or duplicate submissions.
 - Create domestic GST tax invoices in INR with CGST and SGST, CGST and UTGST, or IGST. Add HSN/SAC, units, discounts, percentage cess, reverse-charge status, and place of supply. The app uses decimal arithmetic and saves the PDF and invoice data together.
 - Search the customer address book, apply billing and dispatch details, or save a new customer from an invoice. Issued invoices retain a snapshot of the addresses and amounts.
-- Choose Auto, Light, or Dark in the toolbar or Settings. Auto follows Windows appearance.
 - Set **Interface size** in **Settings → Appearance** to 90%, 80%, or 75% to fit more of the workspace on a small screen. Choose 100% to restore the default size.
 - Switch between side-by-side live preview and a full-width form. Choose the freight layout based on the corrected SSKT invoice with Container fields, ruled address boxes, and right-aligned tax totals, or use the standard A4 template. Move and resize fields, adjust table columns and page dimensions, snap to a grid, undo changes, and save named template copies.
 - Export a CSV invoice register, duplicate existing invoices into drafts, and create a local workspace backup.
 - Opt in to automatic Google Drive uploads of newly issued PDFs. Private uploads use a persistent retry queue. Share an individual invoice when you want anyone with its link to view it.
 
 The freight template follows the supplied SSKT layout and uses fictional data in its editor preview. Supplier names, logos, GSTINs and contacts are configured locally. In Settings, enter bank transfer details and enable the smaller bank QR on each invoice that should carry it. It encodes text for manual bank transfer. The default freight PDF has one upper-right invoice QR. To adopt the corrected preset after saving an older custom layout, load **Freight · SSKT layout** in the layout editor and select **Save layout**.
+
+## UPI and payment records
+
+In **Settings → UPI payments**, enter the business UPI ID and payee name from its payment app, then save. In the invoice editor, choose **Notes → Print a payment QR → UPI**. The printed QR contains a UPI payment request with the invoice amount, number and INR currency. Scan a test invoice and confirm the recipient and amount before sharing it. For an older custom Standard template, load the current Standard A4 preset in Layout editor to add its payment QR section.
+
+Record a payment in the invoice register after confirming receipt in the bank or UPI app. These are local bookkeeping records. Payment confirmation comes from the business’s bank or payment provider.
+
+## Help and backups
+
+**Help & about** shows the version, source and release pages, backup status and **Refresh Start menu shortcut**. Refresh writes the shortcut for the current Windows account and opens its folder, where it can be pinned to Start.
+
+**Restore backup** validates a selected workspace backup, saves a safety copy of the current database, then restores it. Pending Drive uploads are paused after restore. Reconnect the matching Drive account and retry an upload explicitly when ready.
+
+Keyboard shortcuts include **Ctrl+N** for an invoice, **Ctrl+S** to save the active form, **Ctrl+K** for search, and **Ctrl+Enter** to review and issue. The invoice editor displays save progress and highlights incomplete fields.
 
 ## GST and e-invoicing scope
 

@@ -1,5 +1,5 @@
 export const appearanceModes = [
-  ['auto', 'Auto', 'monitor'],
+  ['auto', 'Match Windows', 'monitor'],
   ['light', 'Light', 'sun'],
   ['dark', 'Dark', 'moon']
 ];
@@ -18,13 +18,26 @@ let zoomUpdate = Promise.resolve();
 
 export const appearanceMode = () => preference;
 export const interfaceSize = () => size;
+const visualKey='invoicer-visual-mode';
+const densityKey='invoicer-density';
+export const visualMode=()=>localStorage.getItem(visualKey)==='performance'?'performance':'beautiful';
+export const density=()=>localStorage.getItem(densityKey)==='compact'?'compact':'comfortable';
+export function setVisualMode(value) {
+  if(!['performance','beautiful'].includes(value))return;
+  localStorage.setItem(visualKey,value);document.documentElement.dataset.visualMode=value;
+}
+export function setDensity(value) {
+  if(!['compact','comfortable'].includes(value))return;
+  localStorage.setItem(densityKey,value);document.documentElement.dataset.density=value;
+}
 
 function paintAppearance() {
   document.documentElement.dataset.theme = preference === 'auto' ? (system.matches ? 'dark' : 'light') : preference;
   const icon = document.querySelector('[data-appearance-icon]');
   if (icon) icon.setAttribute('href', '#i-' + appearanceModes.find(([mode]) => mode === preference)[2]);
   for (const control of document.querySelectorAll('[data-appearance]')) {
-    if (control.type === 'radio') control.checked = control.value === preference;
+    if (control.tagName === 'BUTTON') control.setAttribute('aria-pressed',String(control.dataset.appearance === preference));
+    else if (control.type === 'radio') control.checked = control.value === preference;
     else control.value = preference;
   }
 }
@@ -62,5 +75,7 @@ export async function setInterfaceSize(value) {
 
 system.addEventListener('change', paintAppearance);
 paintAppearance();
+document.documentElement.dataset.visualMode=visualMode();
+document.documentElement.dataset.density=density();
 syncWindow();
 if (size !== '100') syncZoom(size).catch(() => {});

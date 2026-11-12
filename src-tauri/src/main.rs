@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod desktop;
 mod drive;
 mod invoice;
 mod store;
@@ -238,7 +239,7 @@ async fn backup(app: AppHandle, data: Data<'_>) -> Result<bool> {
     let data = Arc::clone(data.inner());
     tauri::async_runtime::spawn_blocking(move || {
         let filename = format!(
-            "gst-invoice-backup-{}.sqlite",
+            "invoicer-in-backup-{}.sqlite",
             Local::now().format("%Y%m%d-%H%M%S")
         );
         let Some(path) = app
@@ -254,9 +255,7 @@ async fn backup(app: AppHandle, data: Data<'_>) -> Result<bool> {
         if path.exists() {
             return Err("Choose a new filename for this backup.".into());
         }
-        data.lock()?
-            .execute("VACUUM INTO ?1", params![path.to_string_lossy().as_ref()])
-            .map_err(store::error)?;
+        store::backup_to(&*data.lock()?, &path)?;
         Ok(true)
     })
     .await
@@ -320,6 +319,108 @@ async fn drive_link(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+fn list_services(data: Data<'_>) -> Result<Vec<Value>> {
+    store::services(&*data.lock()?)
+}
+
+#[tauri::command]
+fn save_service(data: Data<'_>, value: Value) -> Result<Value> {
+    store::save_service(&*data.lock()?, value)
+}
+
+#[tauri::command]
+fn delete_service(data: Data<'_>, id: String) -> Result<()> {
+    data.lock()?
+        .execute("DELETE FROM services WHERE id=?1", [id])
+        .map_err(store::error)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn list_payments(data: Data<'_>, invoice: String) -> Result<Vec<Value>> {
+    store::payments(&*data.lock()?, &invoice)
+}
+
+#[tauri::command]
+fn save_payment(data: Data<'_>, invoice: String, value: Value) -> Result<()> {
+    store::save_payment(&mut *data.lock()?, &invoice, value)
+}
+
+#[tauri::command]
+fn delete_payment(data: Data<'_>, invoice: String, id: String) -> Result<()> {
+    data.lock()?
+        .execute(
+            "DELETE FROM payments WHERE invoice=?1 AND id=?2",
+            params![invoice, id],
+        )
+        .map_err(store::error)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn app_info(app: AppHandle, data: Data<'_>) -> Result<Value> {
+    Ok(
+        serde_json::json!({"version":app.package_info().version.to_string(),"lastBackup":store::last_backup(&*data.lock()?)?}),
+    )
+}
+
+#[tauri::command]
+async fn open_project_page(page: String) -> Result<()> {
+    let url = match page.as_str() {
+        "source" => "https://github.com/kellylabelstudio/invoicer-in",
+        "updates" => "https://github.com/kellylabelstudio/invoicer-in/releases",
+        _ => return Err("Unknown project page.".into()),
+    };
+    open::that(url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn repair_start_menu() -> Result<()> {
+    tauri::async_runtime::spawn_blocking(desktop::repair_shortcut)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn restore_backup(
+    app: AppHandle,
+    data: Data<'_>,
+    gate: State<'_, DriveGate>,
+) -> Result<Option<String>> {
+    let data = Arc::clone(data.inner());
+    let gate = Arc::clone(&gate.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(path) = app
+            .dialog()
+            .file()
+            .set_title("Choose an Invoicer In workspace backup")
+            .add_filter("Workspace backup", &["sqlite"])
+            .blocking_pick_file()
+        else {
+            return Ok(None);
+        };
+        let _guard = gate
+            .try_lock()
+            .map_err(|_| "Google Drive is busy. Try again after its current upload finishes.")?;
+        let folder = app
+            .path()
+            .app_local_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("backups");
+        fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+        let safety = folder.join(format!("before-restore-{}.sqlite", uuid::Uuid::new_v4()));
+        store::restore_from(
+            &mut *data.lock()?,
+            &path.into_path().map_err(|e| e.to_string())?,
+            &safety,
+        )?;
+        Ok(Some(safety.to_string_lossy().into_owned()))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg(windows)]
 fn style_title_bar(window: &tauri::WebviewWindow) {
     use windows_sys::Win32::Graphics::Dwm::{
@@ -372,6 +473,16 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            list_services,
+            save_service,
+            delete_service,
+            list_payments,
+            save_payment,
+            delete_payment,
+            app_info,
+            open_project_page,
+            repair_start_menu,
+            restore_backup,
             get_settings,
             save_settings,
             get_draft,

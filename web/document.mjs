@@ -16,7 +16,8 @@ export const defaultTemplate = {
     shipping: block('Ship to', 427, 160, 385, 90, 9),
     logistics: block('Shipment details', 28, 260, 784, 47, 8),
     items: block('Line items', 28, 317, 784, 110, 8),
-    notes: block('Notes', 28, 437, 354, 115, 8),
+    paymentQr: block('Payment QR', 28, 437, 100, 115, 8, false),
+    notes: block('Notes', 138, 437, 244, 115, 8),
     totals: block('Totals', 392, 437, 274, 115, 9),
     qr: block('Invoice summary QR', 676, 437, 136, 115, 8, false),
     footerRule: block('Footer rule', 28, 556, 784, 2, 8),
@@ -24,7 +25,7 @@ export const defaultTemplate = {
   }
 };
 export const templateSections = template => Object.keys((template.kind === 'freight' ? freightTemplate : defaultTemplate).blocks)
-  .filter(key => key!=='totals' || template.kind!=='freight' || template.blocks?.totals);
+  .filter(key => (key!=='totals' || template.kind!=='freight' || template.blocks?.totals) && (key!=='paymentQr' || template.blocks?.paymentQr));
 
 export function clone(value) { return structuredClone(value); }
 export const amount = (paise = 0) => new Intl.NumberFormat('en-IN', {
@@ -236,6 +237,15 @@ export function documentPages(data, quote, template, qr, measure, { strict = fal
         t.total > 0 && indianWords(t.total)
       ];
       paragraph(b.notes, b.notes.label, notes.filter(Boolean));
+      if (paymentQr?.length) {
+        const box=b.paymentQr;
+        if (!box) throw new Error('Load the current Standard A4 preset in Layout editor to add a payment QR.');
+        const side=Math.min(box.w-8,box.h-box.size-10);
+        if (strict && side<60) throw new Error('Enlarge the payment QR section to keep the code scannable.');
+        const label=data.payment?.method==='upi'?'Pay by UPI':'Bank details';
+        text(box.x+4,box.y+box.size+2,label,box.size,box.color);
+        ops.push({type:'qr',x:box.x+(box.w-side)/2,y:box.y+box.size+7,w:side,h:side,value:paymentQr});
+      }
       paragraph(b.totals, b.totals.label, [
         `Taxable value: ${amount(t.taxable)}`,
         ...(split ? [`CGST: ${amount(t.cgst)}`, `${taxLabel}: ${amount(t.sgst)}`] : [`IGST: ${amount(t.igst)}`]),
@@ -348,6 +358,6 @@ export function csvRegister(rows) {
     if (/^\s*[=+\-@]|\r|\n/.test(raw)) raw = "'" + raw;
     return '"' + raw.replaceAll('"','""') + '"';
   };
-  const lines = rows.map(row => [row.number,row.day,row.buyer,(row.total/100).toFixed(2)]);
-  return '\ufeff' + [['Invoice','Date','Buyer','Total (INR)'],...lines].map(r => r.map(cell).join(',')).join('\r\n');
+  const lines = rows.map(row => [row.number,row.day,row.buyer,(row.total/100).toFixed(2),((row.paid??0)/100).toFixed(2),((row.balance??row.total)/100).toFixed(2),row.dueDate??'',row.paymentStatus??'Issued']);
+  return '\ufeff' + [['Invoice','Date','Buyer','Total (INR)','Received (INR)','Outstanding (INR)','Due date','Payment status'],...lines].map(r => r.map(cell).join(',')).join('\r\n');
 }

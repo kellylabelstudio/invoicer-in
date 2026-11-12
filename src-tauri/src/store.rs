@@ -21,7 +21,19 @@ fn decode(raw: String) -> Result<Value> {
 impl Store {
     pub fn open(path: &Path) -> Result<Self> {
         let db = Connection::open(path).map_err(error)?;
-        db.execute_batch(
+        initialize(&db)?;
+        Ok(Self(Mutex::new(db)))
+    }
+
+    pub fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
+        self.0
+            .lock()
+            .map_err(|_| "Restart the application to reopen its local data.".into())
+    }
+}
+
+fn initialize(db: &Connection) -> Result<()> {
+    db.execute_batch(
             "PRAGMA journal_mode=WAL;
              PRAGMA foreign_keys=ON;
              CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, data TEXT NOT NULL);
@@ -36,17 +48,17 @@ impl Store {
                  invoice TEXT PRIMARY KEY REFERENCES invoices(id), file_id TEXT,
                  status TEXT NOT NULL, message TEXT, attempts INTEGER NOT NULL DEFAULT 0,
                  next_at INTEGER NOT NULL DEFAULT 0, account TEXT
-             );",
+             );
+             CREATE TABLE IF NOT EXISTS services (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS payments (
+                 id TEXT PRIMARY KEY, invoice TEXT NOT NULL REFERENCES invoices(id),
+                 amount INTEGER NOT NULL CHECK(amount>0), day TEXT NOT NULL, data TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS payments_invoice ON payments(invoice);
+             CREATE TABLE IF NOT EXISTS workspace_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
         )
         .map_err(error)?;
-        Ok(Self(Mutex::new(db)))
-    }
-
-    pub fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
-        self.0
-            .lock()
-            .map_err(|_| "Restart the application to reopen its local data.".into())
-    }
+    Ok(())
 }
 
 pub fn settings(db: &Connection) -> Result<Value> {
@@ -82,18 +94,37 @@ pub struct Summary {
     pub drive_id: Option<String>,
     pub drive_status: Option<String>,
     pub drive_message: Option<String>,
+    pub paid: i64,
+    pub balance: i64,
+    pub due_date: String,
+    pub payment_status: String,
 }
 
 pub fn invoices(db: &Connection) -> Result<Vec<Summary>> {
     let mut stmt = db
         .prepare(
             "SELECT i.id, i.number, i.day, COALESCE(json_extract(i.data, '$.buyer.name'), ''),
-         i.total, i.legacy, i.pdf IS NOT NULL, u.file_id, u.status, u.message
+         i.total, i.legacy, i.pdf IS NOT NULL, u.file_id, u.status, u.message,
+         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.invoice=i.id),0),
+         COALESCE(json_extract(i.data,'$.dueDate'),'')
          FROM invoices i LEFT JOIN uploads u ON u.invoice=i.id ORDER BY i.day DESC, i.rowid DESC",
         )
         .map_err(error)?;
     let rows = stmt
         .query_map([], |r| {
+            let total: i64 = r.get(4)?;
+            let paid: i64 = r.get(10)?;
+            let due_date: String = r.get(11)?;
+            let balance = (total - paid).max(0);
+            let payment_status = if balance == 0 {
+                "Paid"
+            } else if date(&due_date).is_ok_and(|d| d < Local::now().date_naive()) {
+                "Overdue"
+            } else if paid > 0 {
+                "Partially paid"
+            } else {
+                "Issued"
+            };
             Ok(Summary {
                 id: r.get(0)?,
                 number: r.get(1)?,
@@ -105,6 +136,10 @@ pub fn invoices(db: &Connection) -> Result<Vec<Summary>> {
                 drive_id: r.get(7)?,
                 drive_status: r.get(8)?,
                 drive_message: r.get(9)?,
+                paid,
+                balance,
+                due_date,
+                payment_status: payment_status.into(),
             })
         })
         .map_err(error)?;
@@ -417,6 +452,215 @@ pub fn import(db: &mut Connection, root: &Path) -> Result<ImportReport> {
     Ok(report)
 }
 
+pub fn services(db: &Connection) -> Result<Vec<Value>> {
+    let mut stmt = db
+        .prepare(
+            "SELECT data FROM services ORDER BY json_extract(data,'$.description') COLLATE NOCASE",
+        )
+        .map_err(error)?;
+    let rows = stmt
+        .query_map([], |r| r.get::<_, String>(0))
+        .map_err(error)?;
+    rows.map(|r| decode(r.map_err(error)?)).collect()
+}
+
+pub fn save_service(db: &Connection, mut service: Value) -> Result<Value> {
+    if field(&service, "description").is_empty() || service.to_string().len() > 10_000 {
+        return Err("Add a service description and keep the entry under 10 KB.".into());
+    }
+    service["quantity"] = json!("1");
+    quote(&json!({"regime":"igst","items":[service.clone()]}))?;
+    let id = if field(&service, "id").is_empty() {
+        Uuid::new_v4()
+    } else {
+        Uuid::parse_str(field(&service, "id")).map_err(|_| "Invalid service ID.")?
+    };
+    service["id"] = json!(id.to_string());
+    db.execute(
+        "INSERT INTO services VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+        params![id.to_string(), service.to_string()],
+    )
+    .map_err(error)?;
+    Ok(service)
+}
+
+pub fn payments(db: &Connection, invoice: &str) -> Result<Vec<Value>> {
+    let mut stmt = db
+        .prepare("SELECT data FROM payments WHERE invoice=?1 ORDER BY day DESC,rowid DESC")
+        .map_err(error)?;
+    let rows = stmt
+        .query_map([invoice], |r| r.get::<_, String>(0))
+        .map_err(error)?;
+    rows.map(|r| decode(r.map_err(error)?)).collect()
+}
+
+pub fn save_payment(db: &mut Connection, invoice: &str, mut value: Value) -> Result<()> {
+    use rust_decimal::{prelude::ToPrimitive, Decimal};
+    use std::str::FromStr;
+    let id = Uuid::parse_str(field(&value, "id"))
+        .map_err(|_| "A payment needs a valid reference ID.")?;
+    let input = field(&value, "amount");
+    if input.is_empty() || !input.bytes().all(|b| b.is_ascii_digit() || b == b'.') {
+        return Err("Enter the payment amount in rupees.".into());
+    }
+    let amount = Decimal::from_str(input).map_err(|_| "Enter a valid payment amount.")?;
+    if amount <= Decimal::ZERO
+        || amount.scale() > 2
+        || amount > Decimal::from(1_000_000_000_000_i64)
+    {
+        return Err("Use a positive payment amount with up to two decimal places.".into());
+    }
+    let paise = (amount * Decimal::from(100))
+        .to_i64()
+        .ok_or("Payment amount is too large.")?;
+    let day = date(field(&value, "date"))?;
+    if day > Local::now().date_naive() {
+        return Err("Record a payment after it has been received.".into());
+    }
+    if !matches!(
+        field(&value, "method"),
+        "UPI" | "Bank transfer" | "Cash" | "Other"
+    ) || value.to_string().len() > 2_000
+    {
+        return Err("Choose a payment method and keep the note under 2 KB.".into());
+    }
+    value["id"] = json!(id.to_string());
+    value["invoice"] = json!(invoice);
+    value["amount"] = json!(amount.normalize().to_string());
+    value["paise"] = json!(paise);
+    let tx = db.transaction().map_err(error)?;
+    let existing: Option<String> = tx
+        .query_row(
+            "SELECT data FROM payments WHERE id=?1",
+            [id.to_string()],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(error)?;
+    if let Some(existing) = existing {
+        if decode(existing)? == value {
+            return Ok(());
+        }
+        return Err(
+            "That payment reference has already been used. Reopen the payment form.".into(),
+        );
+    }
+    let total: i64 = tx
+        .query_row("SELECT total FROM invoices WHERE id=?1", [invoice], |r| {
+            r.get(0)
+        })
+        .map_err(error)?;
+    let paid: i64 = tx
+        .query_row(
+            "SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice=?1",
+            [invoice],
+            |r| r.get(0),
+        )
+        .map_err(error)?;
+    if paise > total - paid {
+        return Err("The payment exceeds the outstanding invoice amount.".into());
+    }
+    tx.execute(
+        "INSERT INTO payments(id,invoice,amount,day,data) VALUES(?1,?2,?3,?4,?5)",
+        params![
+            id.to_string(),
+            invoice,
+            paise,
+            day.to_string(),
+            value.to_string()
+        ],
+    )
+    .map_err(error)?;
+    tx.commit().map_err(error)?;
+    Ok(())
+}
+
+pub fn last_backup(db: &Connection) -> Result<Option<String>> {
+    db.query_row(
+        "SELECT value FROM workspace_meta WHERE key='lastBackup'",
+        [],
+        |r| r.get(0),
+    )
+    .optional()
+    .map_err(error)
+}
+
+pub fn backup_to(db: &Connection, path: &Path) -> Result<()> {
+    if path.exists() {
+        return Err("Choose a new filename for this backup.".into());
+    }
+    db.execute("VACUUM INTO ?1", [path.to_string_lossy().as_ref()])
+        .map_err(error)?;
+    db.execute("INSERT INTO workspace_meta VALUES('lastBackup',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        [Local::now().to_rfc3339()]).map_err(error)?;
+    Ok(())
+}
+
+fn copy_database(source: &Connection, destination: &mut Connection) -> Result<()> {
+    use rusqlite::backup::{Backup, StepResult};
+    let backup = Backup::new(source, destination).map_err(error)?;
+    match backup.step(-1).map_err(error)? {
+        StepResult::Done => Ok(()),
+        _ => Err("The backup is busy. Close the other program using it and try again.".into()),
+    }
+}
+
+pub fn restore_from(db: &mut Connection, path: &Path, safety: &Path) -> Result<()> {
+    use rusqlite::OpenFlags;
+    let source =
+        Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(error)?;
+    let health: String = source
+        .query_row("PRAGMA integrity_check", [], |r| r.get(0))
+        .map_err(error)?;
+    if health != "ok" {
+        return Err("This backup did not pass its integrity check.".into());
+    }
+    for table in ["settings", "draft", "customers", "invoices", "uploads"] {
+        let exists: bool = source
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+                [table],
+                |r| r.get(0),
+            )
+            .map_err(error)?;
+        if !exists {
+            return Err("Select a workspace backup created by Invoicer In.".into());
+        }
+    }
+    let extras: i64 = source
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type IN ('trigger','view')",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(error)?;
+    if extras != 0 {
+        return Err("This database contains unsupported custom schema objects.".into());
+    }
+    let mut candidate = Connection::open_in_memory().map_err(error)?;
+    copy_database(&source, &mut candidate)?;
+    initialize(&candidate)?;
+    // Exercise the schema and JSON before creating a safety copy or changing live data.
+    let mut preferences = settings(&candidate)?;
+    customers(&candidate)?;
+    services(&candidate)?;
+    invoices(&candidate)?;
+    let foreign_errors: i64 = candidate
+        .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| {
+            r.get(0)
+        })
+        .map_err(error)?;
+    if foreign_errors != 0 {
+        return Err("The backup contains inconsistent invoice records.".into());
+    }
+    preferences["driveAuto"] = json!(false);
+    set_settings(&candidate, &preferences)?;
+    candidate.execute("UPDATE uploads SET status='Paused',message='Restored backup. Reconnect Drive before uploading.' WHERE status IN ('Queued','Retrying','Uploading','Failed')",[]).map_err(error)?;
+    backup_to(db, safety)?;
+    copy_database(&candidate, db)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -486,6 +730,126 @@ mod tests {
             customers(&db).unwrap()[0]["shipping"]["address"],
             "Dispatch street"
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod workflow_tests {
+    use super::*;
+    fn sample_invoice(db: &mut Connection) -> String {
+        let seller = json!({"name":"Demo","address":"Demo road","gstin":"27ABCDE1234F1Z5"});
+        set_settings(
+            db,
+            &json!({"seller":seller,"irp":"notRequired","driveAuto":false}),
+        )
+        .unwrap();
+        issue(db,&json!({"seller":seller,"buyer":{"name":"Buyer","address":"Demo","state":"Maharashtra","stateCode":"27"},
+          "date":"2020-01-01","dueDate":"2020-02-01","number":"INV-0001","placeOfSupply":"Maharashtra","placeOfSupplyCode":"27","regime":"split",
+          "items":[{"description":"Service","hsn":"996511","unit":"NOS","quantity":"1","unitPrice":"100","gstRate":"18"}]}),b"%PDF-demo".to_vec()).unwrap()
+    }
+    #[test]
+    fn payments_are_idempotent_exact_and_cannot_overpay() {
+        let store = Store::open(Path::new(":memory:")).unwrap();
+        let mut db = store.lock().unwrap();
+        let invoice = sample_invoice(&mut db);
+        let mut payment = json!({"id":Uuid::new_v4().to_string(),"amount":"50.25","date":"2020-01-01","method":"UPI","reference":"demo"});
+        save_payment(&mut db, &invoice, payment.clone()).unwrap();
+        save_payment(&mut db, &invoice, payment.clone()).unwrap();
+        let row = &invoices(&db).unwrap()[0];
+        assert_eq!(
+            (row.paid, row.balance, row.payment_status.as_str()),
+            (5025, 6775, "Overdue")
+        );
+        payment["amount"] = json!("60");
+        assert!(save_payment(&mut db, &invoice, payment.clone()).is_err());
+        payment["id"] = json!(Uuid::new_v4().to_string());
+        payment["amount"] = json!("67.76");
+        assert!(save_payment(&mut db, &invoice, payment.clone()).is_err());
+        payment["amount"] = json!("67.75");
+        save_payment(&mut db, &invoice, payment).unwrap();
+        assert_eq!(invoices(&db).unwrap()[0].payment_status, "Paid");
+        assert_eq!(payments(&db, &invoice).unwrap().len(), 2);
+    }
+    #[test]
+    fn backup_restore_keeps_records_and_saves_the_replaced_workspace() {
+        let root = std::env::temp_dir().join(format!("invoicer-restore-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let store = Store::open(Path::new(":memory:")).unwrap();
+        let mut db = store.lock().unwrap();
+        let invoice = sample_invoice(&mut db);
+        save_service(
+            &db,
+            json!({"description":"Saved service","unitPrice":"12.50","gstRate":"18"}),
+        )
+        .unwrap();
+        let payment = json!({"id":Uuid::new_v4().to_string(),"amount":"10","date":"2020-01-01","method":"Cash"});
+        save_payment(&mut db, &invoice, payment).unwrap();
+        db.execute(
+            "INSERT INTO uploads(invoice,status,account) VALUES(?1,'Queued','demo')",
+            [&invoice],
+        )
+        .unwrap();
+        backup_to(&db, &root.join("backup.sqlite")).unwrap();
+        let mut changed = settings(&db).unwrap();
+        changed["seller"]["name"] = json!("Changed supplier");
+        set_settings(&db, &changed).unwrap();
+        restore_from(
+            &mut db,
+            &root.join("backup.sqlite"),
+            &root.join("safety.sqlite"),
+        )
+        .unwrap();
+        assert_eq!(settings(&db).unwrap()["seller"]["name"], "Demo");
+        assert_eq!(services(&db).unwrap().len(), 1);
+        assert_eq!(payments(&db, &invoice).unwrap().len(), 1);
+        let status: String = db
+            .query_row("SELECT status FROM uploads", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(status, "Paused");
+        assert_eq!(
+            settings(&Connection::open(root.join("safety.sqlite")).unwrap()).unwrap()["seller"]
+                ["name"],
+            "Changed supplier"
+        );
+        let invalid = Connection::open(root.join("unrelated.sqlite")).unwrap();
+        invalid.execute_batch("CREATE TABLE unrelated(a);").unwrap();
+        drop(invalid);
+        assert!(restore_from(
+            &mut db,
+            &root.join("unrelated.sqlite"),
+            &root.join("unused.sqlite")
+        )
+        .is_err());
+        assert!(!root.join("unused.sqlite").exists());
+        assert_eq!(invoices(&db).unwrap().len(), 1);
+        drop(db);
+        drop(store);
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn restores_a_backup_from_before_services_and_payments_existed() {
+        let root = std::env::temp_dir().join(format!("invoicer-old-backup-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let store = Store::open(Path::new(":memory:")).unwrap();
+        let mut db = store.lock().unwrap();
+        sample_invoice(&mut db);
+        backup_to(&db, &root.join("old.sqlite")).unwrap();
+        let old = Connection::open(root.join("old.sqlite")).unwrap();
+        old.execute_batch("DROP TABLE payments; DROP TABLE services; DROP TABLE workspace_meta;")
+            .unwrap();
+        drop(old);
+        restore_from(
+            &mut db,
+            &root.join("old.sqlite"),
+            &root.join("safety.sqlite"),
+        )
+        .unwrap();
+        assert_eq!(invoices(&db).unwrap().len(), 1);
+        assert!(services(&db).unwrap().is_empty());
+        assert!(last_backup(&db).unwrap().is_none());
+        drop(db);
+        drop(store);
         fs::remove_dir_all(root).unwrap();
     }
 }

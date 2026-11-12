@@ -423,7 +423,7 @@ pub fn retry(store: &Store, invoice: &str) -> Result<()> {
     let changed = db
         .execute(
             "UPDATE uploads SET status='Queued',message=NULL,attempts=0,next_at=0
-         WHERE invoice=?1 AND account=?2 AND status IN ('Retrying','Failed')",
+         WHERE invoice=?1 AND account=?2 AND status IN ('Retrying','Failed','Paused')",
             params![invoice, account],
         )
         .map_err(store::error)?;

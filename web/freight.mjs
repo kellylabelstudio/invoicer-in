@@ -57,7 +57,19 @@ function partyLines(label, party = {}) {
   ].map(([name,value]) => `${name}: ${value || ''}`);
 }
 
-export function paymentQrPayload(payment) {
+export function paymentQrPayload(payment, {total,number,date} = {}) {
+  if (payment?.method === 'upi') {
+    const id = payment.upiId?.trim();
+    const name = payment.upiName?.trim();
+    if (!id || !/^[a-z0-9._-]{1,256}@[a-z0-9.-]{2,64}$/i.test(id) || !name || name.length>100) return '';
+    const params = new URLSearchParams({pa:id,pn:name,cu:'INR'});
+    if (Number.isSafeInteger(total) && total>0) params.set('am',(total/100).toFixed(2));
+    if (number) {
+      params.set('tn',`Invoice ${number}`);
+      params.set('tr',`${date??''}${number}`.replace(/[^a-z0-9.-]/gi,'').slice(0,35));
+    }
+    return 'upi://pay?'+params.toString().replaceAll('+','%20');
+  }
   if (!payment || !['holder','bank','account','ifsc'].every(key => typeof payment[key] === 'string' && payment[key].trim())) return '';
   return ['BANK TRANSFER DETAILS', `Account holder: ${payment.holder.trim()}`, `Bank: ${payment.bank.trim()}`,
     `Account number: ${payment.account.trim()}`, `IFSC: ${payment.ifsc.trim().toUpperCase()}`,
@@ -258,7 +270,7 @@ export function freightPages(data, quote, template, qr, paymentQr, measure, stri
         data.paymentTerms&&`Payment Term: ${data.paymentTerms}`,data.notes&&`Note: ${data.notes}`,
         data.insurance&&`Insurance By: ${data.insurance}`,data.irn&&`IRN: ${data.irn}`].filter(Boolean);
       section(b.notes,notes);
-      qrBox(b.paymentQr,paymentQr,b.paymentQr.label,55);
+      qrBox(b.paymentQr,paymentQr,data.payment?.method==='upi'?'Scan to pay · UPI':b.paymentQr.label,60);
       single('end',b.end.label);
     }
     if(b.items.border)rect(b.items.x,b.items.y,b.items.w,(ruled?tableEnd:y)-b.items.y);

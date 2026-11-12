@@ -111,3 +111,32 @@ test('freight pages keep every row and print the totals only on the final page',
   assert.ok(pages.at(-1).some(o=>o.value==='Total Invoice Value:'));
   assert.equal(pages.flat().filter(o=>o.value==='Bank payment details').length,1);
 });
+
+test('UPI payment QR escapes payee details and includes the exact invoice amount',async()=>{
+  const {paymentQrPayload}=await import('../web/document.mjs');
+  const uri=paymentQrPayload({method:'upi',upiId:'demo.business@bank',upiName:'Demo & Sample'}, {total:11825,number:'INV/0024',date:'2026-11-12'});
+  const parsed=new URL(uri);
+  assert.equal(parsed.protocol,'upi:');
+  assert.equal(parsed.searchParams.get('pa'),'demo.business@bank');
+  assert.equal(parsed.searchParams.get('pn'),'Demo & Sample');
+  assert.equal(parsed.searchParams.get('am'),'118.25');
+  assert.equal(parsed.searchParams.get('cu'),'INR');
+  assert.equal(parsed.searchParams.get('tn'),'Invoice INV/0024');
+  assert.equal(paymentQrPayload({method:'upi',upiId:'bad&pa=other@bank',upiName:'Demo'}),'');
+});
+
+test('UPI QR prints on both templates and legacy standard layouts stay usable',async()=>{
+  const {freightTemplate}=await import('../web/document.mjs');
+  const record={...data,payment:{method:'upi',upiId:'demo@bank',upiName:'Demo'}};
+  for(const template of [freightTemplate,defaultTemplate]) {
+    const pages=documentPages(record,quote,template,qr,measure,{paymentQr:qr,strict:true});
+    assert.equal(pages.flat().filter(o=>o.type==='qr').length,2);
+    assert.ok(pages.flat().some(o=>typeof o.value==='string'&&o.value.includes('UPI')));
+    const bytes=await makePdf({pdfLib,fontkit,fontBytes,data:record,quote,template,qr,paymentQr:qr});
+    assert.ok(bytes.length>1000);
+  }
+  const old=clone(defaultTemplate);delete old.blocks.paymentQr;old.blocks.notes.x=28;old.blocks.notes.w=354;
+  checkTemplate(old);
+  assert.doesNotThrow(()=>documentPages(data,quote,old,qr,measure,{strict:true}));
+  assert.throws(()=>documentPages(record,quote,old,qr,measure,{strict:true,paymentQr:qr}),/current Standard/);
+});

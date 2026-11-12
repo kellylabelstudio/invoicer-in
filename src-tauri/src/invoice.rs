@@ -148,6 +148,10 @@ pub fn validate(invoice: &Value, irp: &str) -> Result<Quote> {
         return Err("Invoice number must be 1–16 letters, numbers, hyphens or slashes.".into());
     }
     date(field(invoice, "date"))?;
+    let due = field(invoice, "dueDate");
+    if !due.is_empty() && date(due)? < date(field(invoice, "date"))? {
+        return Err("The due date must be on or after the invoice date.".into());
+    }
     let seller = &invoice["seller"];
     let buyer = &invoice["buyer"];
     let pos = field(invoice, "placeOfSupplyCode");
