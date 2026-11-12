@@ -442,7 +442,7 @@ root.addEventListener('input', event => {
   const name=input.name;
   if(!name || input.type==='file'||name==='serviceCatalog') return;
   if(input.matches('[data-accent-control]')) {
-    if(input.type==='color')setAccentColor(input.dataset.accentControl,input.value);
+    if(input.type==='color'||/^#[\da-f]{6}$/i.test(input.value))setAccentColor(input.dataset.accentControl,input.value);
     return;
   }
   if(state.fieldErrors[name]){delete state.fieldErrors[name];input.removeAttribute('aria-invalid');input.closest('.field')?.querySelector('.field-error')?.remove();}
@@ -930,6 +930,12 @@ async function businessAction(action,id,button) {
 document.addEventListener('keydown',event=>{
   if(!(event.ctrlKey||event.metaKey)||event.altKey||modal.open||state.locked)return;
   const key=event.key.toLowerCase();
+  if(key==='s'&&document.activeElement?.matches('[data-accent-control]')) {
+    const input=document.activeElement;
+    if(!setAccentColor(input.dataset.accentControl,input.value)) {
+      event.preventDefault();input.setAttribute('aria-invalid','true');notify('Enter a color such as #086e66.',true);return;
+    }
+  }
   let button;
   if(key==='n'){event.preventDefault();openDraft().catch(error=>notify(error.message??error,true));return;}
   if(key==='s')button=root.querySelector(`[data-action="${({draft:'save-draft',settings:'save-settings',contact:'save-customer',service:'save-service'})[state.view]}"]`);
