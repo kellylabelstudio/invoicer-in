@@ -232,6 +232,7 @@ export function documentPages(data, quote, template, qr, measure, { strict = fal
       const notes = [
         data.irn && `IRN: ${data.irn}`,
         data.paymentTerms && `Payment terms: ${data.paymentTerms}`,
+        data.dueDate && `Due date: ${displayDate(data.dueDate)}`,
         data.transactionType && `Transaction: ${data.transactionType}`,
         data.insurance && `Insurance by: ${data.insurance}`, data.notes,
         t.total > 0 && indianWords(t.total)

@@ -267,7 +267,7 @@ export function freightPages(data, quote, template, qr, paymentQr, measure, stri
       }
       const notes=[`Total Rs: ${ruled?money(t.total):amount(t.total)}`,`Total in words Rs: ${indianWords(t.total)}`,
         data.transactionType&&`Transaction Type: ${data.transactionType}`,
-        data.paymentTerms&&`Payment Term: ${data.paymentTerms}`,data.notes&&`Note: ${data.notes}`,
+        data.paymentTerms&&`Payment Term: ${data.paymentTerms}`,data.dueDate&&`Payment Due: ${displayDate(data.dueDate)}`,data.notes&&`Note: ${data.notes}`,
         data.insurance&&`Insurance By: ${data.insurance}`,data.irn&&`IRN: ${data.irn}`].filter(Boolean);
       section(b.notes,notes);
       qrBox(b.paymentQr,paymentQr,data.payment?.method==='upi'?'Scan to pay · UPI':b.paymentQr.label,60);

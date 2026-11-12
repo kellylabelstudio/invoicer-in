@@ -637,7 +637,8 @@ pub fn restore_from(db: &mut Connection, path: &Path, safety: &Path) -> Result<(
     if extras != 0 {
         return Err("This database contains unsupported custom schema objects.".into());
     }
-    let mut candidate = Connection::open_in_memory().map_err(error)?;
+    let staging = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let mut candidate = Connection::open(staging.path().join("workspace.sqlite")).map_err(error)?;
     copy_database(&source, &mut candidate)?;
     initialize(&candidate)?;
     // Exercise the schema and JSON before creating a safety copy or changing live data.

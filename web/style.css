@@ -251,47 +251,9 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .crumb { color: var(--muted); font-size: 12px; }
 .crumb strong { color: var(--text); font-weight: 670; }
 .crumb .ico { width: 13px; height: 13px; }
-.appearance-quick {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  min-height: 35px;
-  padding-left: 9px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--surface);
-  color: var(--accent-ink);
-}
-.appearance-quick select {
-  min-width: 61px;
-  min-height: 33px;
-  padding: 4px 5px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 650;
-}
 .appearance-setting { display: flex; align-items: center; justify-content: space-between; gap: 13px; flex-wrap: wrap; }
 .appearance-setting + .appearance-setting { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--border); }
 .appearance-setting select { min-width: 135px; }
-.appearance-options { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); }
-.appearance-options label { position: relative; }
-.appearance-options input { position: absolute; width: 1px; height: 1px; min-height: 0; opacity: 0; }
-.appearance-options span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 5px 10px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  color: var(--muted);
-  cursor: pointer;
-}
-.appearance-options input:checked + span { background: var(--surface); border-color: var(--border); color: var(--accent-ink); font-weight: 700; }
-.appearance-options input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
-.appearance-options .ico { width: 15px; height: 15px; }
 
 .pagehead { display: flex; align-items: end; justify-content: space-between; gap: 15px; margin-bottom: 22px; }
 .pagehead p { margin-top: 7px; max-width: 62ch; color: var(--muted); }
@@ -537,7 +499,7 @@ dialog p { margin: 10px 0 17px; white-space: pre-wrap; overflow-wrap: anywhere; 
 }
 @media (forced-colors: active) {
   .nav button[aria-current="page"], .editor-tabs button[aria-pressed="true"],
-  .segment button[aria-pressed="true"], .appearance-options input:checked + span {
+  .segment button[aria-pressed="true"], .theme-switch button[aria-pressed="true"] {
     border-color: Highlight;
   }
 }

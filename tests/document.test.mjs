@@ -127,7 +127,7 @@ test('UPI payment QR escapes payee details and includes the exact invoice amount
 
 test('UPI QR prints on both templates and legacy standard layouts stay usable',async()=>{
   const {freightTemplate}=await import('../web/document.mjs');
-  const record={...data,payment:{method:'upi',upiId:'demo@bank',upiName:'Demo'}};
+  const record={...data,dueDate:'2026-12-01',payment:{method:'upi',upiId:'demo@bank',upiName:'Demo'}};
   for(const template of [freightTemplate,defaultTemplate]) {
     const pages=documentPages(record,quote,template,qr,measure,{paymentQr:qr,strict:true});
     assert.equal(pages.flat().filter(o=>o.type==='qr').length,2);
