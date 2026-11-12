@@ -20,6 +20,11 @@ use tauri_plugin_dialog::DialogExt;
 type Data<'a> = State<'a, Arc<store::Store>>;
 
 #[tauri::command]
+fn set_window_glass(window: tauri::WebviewWindow, enabled: bool) -> Result<bool> {
+    desktop::set_window_glass(&window, enabled)
+}
+
+#[tauri::command]
 fn get_settings(data: Data<'_>) -> Result<Value> {
     let db = data.lock()?;
     store::settings(&db)
@@ -453,6 +458,14 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|window, event| {
+            if matches!(
+                event,
+                tauri::WindowEvent::Focused(true) | tauri::WindowEvent::Resized(_)
+            ) {
+                desktop::refresh_glass_frame(window);
+            }
+        })
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 if let Err(error) = desktop::fit_initial_window(&window) {
@@ -476,6 +489,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            set_window_glass,
             list_services,
             save_service,
             delete_service,

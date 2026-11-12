@@ -1,5 +1,69 @@
 use crate::invoice::Result;
 
+#[cfg(windows)]
+static GLASS_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(windows)]
+fn apply_glass(hwnd: windows_sys::Win32::Foundation::HWND, enabled: bool) -> bool {
+    use windows_sys::Win32::Graphics::Dwm::{
+        DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW,
+        DWMWA_SYSTEMBACKDROP_TYPE,
+    };
+    use windows_sys::Win32::UI::Controls::MARGINS;
+    let effect = if enabled {
+        DWMSBT_TRANSIENTWINDOW
+    } else {
+        DWMSBT_NONE
+    } as u32;
+    let margin = if enabled { -1 } else { 0 };
+    let frame = MARGINS {
+        cxLeftWidth: margin,
+        cxRightWidth: margin,
+        cyTopHeight: margin,
+        cyBottomHeight: margin,
+    };
+    // Unsupported Windows builds return a failure; the web UI keeps an opaque fallback.
+    unsafe {
+        let backdrop = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE as u32,
+            std::ptr::from_ref(&effect).cast(),
+            std::mem::size_of_val(&effect) as u32,
+        );
+        let extended = DwmExtendFrameIntoClientArea(hwnd, &frame);
+        backdrop >= 0 && extended >= 0
+    }
+}
+
+pub fn set_window_glass(window: &tauri::WebviewWindow, enabled: bool) -> Result<bool> {
+    #[cfg(windows)]
+    {
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        let applied = apply_glass(hwnd.0, enabled);
+        if enabled && !applied {
+            apply_glass(hwnd.0, false);
+        }
+        GLASS_ENABLED.store(enabled && applied, std::sync::atomic::Ordering::Relaxed);
+        Ok(enabled && applied)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, enabled);
+        Ok(false)
+    }
+}
+
+pub fn refresh_glass_frame(window: &tauri::Window) {
+    #[cfg(windows)]
+    if GLASS_ENABLED.load(std::sync::atomic::Ordering::Relaxed) {
+        if let Ok(hwnd) = window.hwnd() {
+            apply_glass(hwnd.0, true);
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = window;
+}
+
 pub fn fit_initial_window(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     let monitor = window.current_monitor()?.or(window.primary_monitor()?);
     let Some(monitor) = monitor else {

@@ -1,7 +1,7 @@
 import { amount, checkTemplate, clone, csvRegister, defaultTemplate, displayDate, documentPages, escapeHtml as e,
   freightTemplate, makePdf, paymentQrPayload, qrPayload, resizePaper, templateSections, toSvg, validLogo } from './document.mjs';
 import { freightColumns } from './freight.mjs';
-import { appearanceMode, appearanceModes, displayReady, interfaceSize, interfaceSizeLabel, interfaceSizes, paintDisplayControls, setAppearance, setInterfaceSize, visualMode, setVisualMode, density, setDensity } from './appearance.mjs';
+import { accentColor, accentPresets, appearanceMode, appearanceModes, displayReady, interfaceSize, interfaceSizeLabel, interfaceSizes, paintColorControls, paintDisplayControls, resetAccentColor, setAccentColor, setAppearance, setInterfaceSize, visualMode, setVisualMode, density, setDensity } from './appearance.mjs';
 import { gstStates } from './gst-states.mjs';
 
 const root = document.querySelector('#app');
@@ -84,18 +84,29 @@ function appearanceControls(compact=false) {
   return `<div class="theme-switch ${compact?'compact':''}" role="group" aria-label="Appearance">${appearanceModes.map(([mode,label,glyph])=>
     `<button type="button" data-action="appearance" data-appearance="${mode}" aria-label="${label}" title="${label}" aria-pressed="${mode===appearanceMode()}">${icon(glyph)}${compact?'':`<span>${label}</span>`}</button>`).join('')}</div>`;
 }
+function accentControls(theme) {
+  const name=theme==='light'?'Light':'Dark';
+  return `<section class="accent-card"><div class="accent-title">${icon(theme==='light'?'sun':'moon')}<h3>${name} mode accent</h3>${btn('accent-reset','Reset','subtle',`data-id="${theme}" aria-label="Reset ${name.toLowerCase()} accent"`)}</div>
+    <div class="accent-preview ${theme}" data-accent-preview="${theme}"><span class="mini-invoice">${icon('invoice')}</span><span><strong>Invoice workspace</strong><small>${name} theme preview</small></span><span class="mini-action">New invoice</span></div>
+    <div class="accent-swatches" role="group" aria-label="${name} accent presets">${accentPresets.map(([label,light,dark])=>{
+      const color=theme==='light'?light:dark;
+      return `<button type="button" data-action="accent-preset" data-theme="${theme}" data-accent-preset="${color}" aria-label="${name} ${label.toLowerCase()} accent" title="${label}" aria-pressed="${accentColor(theme)===color}" style="--swatch:${color}">${icon('check')}</button>`;
+    }).join('')}</div>
+    <div class="custom-color"><label class="color-picker"><input type="color" data-accent-control="${theme}" name="accentColor.${theme}" aria-label="${name} accent color" value="${accentColor(theme)}"><span>Custom color</span></label><label class="field"><span>Hex</span><input type="text" data-accent-control="${theme}" name="accentHex.${theme}" aria-label="${name} accent hex" value="${accentColor(theme)}" maxlength="7" spellcheck="false" autocomplete="off"></label></div></section>`;
+}
 function frame(content) {
   const nav = [['invoices','Invoices','invoice'],['customers','Customers','people'],['services','Services','box'],['layout','Layout editor','layout'],['settings','Settings','settings'],['help','Help & about','help']];
-    return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">${icon('invoice')}</div>
+    return `<div class="ambient" aria-hidden="true"><span class="ambient-one"></span><span class="ambient-two"></span><span class="ambient-ring"></span></div><div class="shell" data-view="${state.view}"><aside class="sidebar"><div class="brand"><div class="brand-mark">${icon('invoice')}</div>
     <div class="brand-text"><strong>Invoicer In</strong><span>Kelly Label Studio</span></div></div>
+    ${btn('new','Create invoice','primary sidebar-create','','plus')}
     <div class="nav-caption">Workspace</div><nav class="nav" aria-label="Workspace">${nav.map(([id,title,glyph]) => {
       const active = state.view===id || id==='invoices'&&['draft','payments'].includes(state.view) || id==='customers'&&state.view==='contact' || id==='services'&&state.view==='service';
       return `<button type="button" data-action="nav" data-id="${id}" title="${title}" aria-label="${title}" ${active?'aria-current="page"':''}>${icon(glyph)}<span class="label">${title}</span></button>`;
     }).join('')}</nav>
     <div class="sidebar-footer">${icon('lock')}<span><strong>India GST workspace</strong><small>Records stored on this PC</small></span></div></aside>
     <main class="workspace"><div class="topbar">
-      <div class="crumb"><span>Workspace</span>${icon('chevron')}<strong>${panelTitle()}</strong></div>
-      <div class="topbar-actions"><button type="button" class="display-size-button" data-action="display-settings" title="Change interface size in Settings" aria-label="Interface size settings">${icon('monitor')}<span data-display-size>${interfaceSizeLabel()}</span></button><span class="pill workspace-status">${icon(state.drive.connected?'cloud':'lock')}${state.drive.connected?'Drive connected':'Local workspace'}</span>
+      <div class="crumb"><span>${e(state.settings.seller?.name||'Your business')}</span>${icon('chevron')}<strong>${panelTitle()}</strong></div>
+      <div class="topbar-actions"><button type="button" class="glass-toggle" data-action="toggle-glass" data-glass-toggle aria-label="Glass appearance" aria-pressed="${visualMode()==='beautiful'}">${icon('sparkles')}<span data-glass-label>${visualMode()==='beautiful'?'Glass':'Performance'}</span></button><button type="button" class="display-size-button" data-action="display-settings" title="Change interface size in Settings" aria-label="Interface size settings">${icon('monitor')}<span data-display-size>${interfaceSizeLabel()}</span></button><span class="pill workspace-status">${icon(state.drive.connected?'cloud':'lock')}${state.drive.connected?'Drive connected':'Local workspace'}</span>
         ${appearanceControls(true)}</div>
       </div>${content}</main></div>`;
 }
@@ -129,7 +140,8 @@ function invoicesView() {
     `${setupChecklist()}<div class="stats">${metrics.map(([glyph,label,value,caption],index)=>
       `<section class="card stat ${index===0?'stat-featured':''}"><div class="stat-head"><span class="stat-icon">${icon(glyph)}</span><span class="k">${label}</span></div>
         <strong>${value}</strong><p>${caption}</p></section>`).join('')}</div>
-    <section class="card register-card"><div class="register-head"><div><h2>Invoice register</h2><p class="muted">Find invoices, export PDFs and manage Drive uploads.</p></div>
+    <div class="workspace-shortcuts"><span>Ready when you are</span><div class="actions">${btn('nav','Customer book','subtle','data-id="customers"','people')}${btn('nav','Saved services','subtle','data-id="services"','box')}${btn('nav','Invoice design','subtle','data-id="layout"','layout')}</div></div>
+    <section class="card register-card"><div class="register-head"><div><h2>Invoice register <span class="register-count">${state.invoices.length}</span></h2><p class="muted">Your invoices, payment progress and PDFs in one place.</p></div>
       ${queued?`<span class="tag warn">${icon('cloud')}${queued} awaiting upload</span>`:''}</div>
       <div class="listbar">${searchBox('invoiceSearch',state.filter,'Search by invoice or customer')}
       <div class="actions">${btn('register','Export CSV') }${btn('import','Import from Python','subtle')}</div></div>
@@ -247,10 +259,14 @@ function settingsView() {
   return heading('Settings','Manage your business details, GST and desktop preferences.',
     btn('save-settings','Save settings','primary','','save'),'Workspace preferences')+
     `<div id="settings-form" class="panel-list">${setupChecklist(true)}
-    ${section('Appearance',`<div class="appearance-setting"><div><h3>Make it feel like yours</h3><p class="muted">Light is the starting theme. Use the computer to follow Windows, the sun for Light, or the moon for Dark.</p></div>${appearanceControls()}</div>
+    ${section('Appearance',`<div class="appearance-setting"><div><h3>Theme</h3><p class="muted">Use the computer to follow Windows, the sun for Light, or the moon for Dark.</p></div>${appearanceControls()}</div>
+    <div class="material-choices" role="group" aria-label="Window style">${[['beautiful','Glass','Frosted panels, depth and Windows background blur.'],['performance','Performance','Opaque surfaces, fewer effects and minimal motion.']].map(([value,title,caption])=>
+      `<button type="button" data-action="material-mode" data-material-mode="${value}" class="material-choice ${value}" aria-pressed="${visualMode()===value}"><span class="material-sample"><i></i><i></i><i></i></span><span><strong>${title}</strong><small>${caption}</small></span><span class="material-check">${icon('check')}</span></button>`).join('')}</div>
+    <p class="muted material-note">Windows background blur is available on supported Windows 11 systems. Frosted app panels work on other systems. Windows accessibility preferences are respected.</p>
+    <div class="accent-grid">${accentControls('light')}${accentControls('dark')}</div><p class="muted appearance-note">Each theme remembers its own accent. Changes save automatically on this PC and leave printed invoices unchanged.</p>
     <div class="appearance-setting"><div class="display-description"><h3>Smart sizing ✨</h3><p class="muted" data-display-hint></p><small>Your choice is remembered on this PC. Invoice print size stays the same.</small></div>${
       select('interfaceSize','Interface size',interfaceSize(),interfaceSizes.map(value=>[value,value==='smart'?'Smart ✨ (recommended)':`${value}%`]))}</div>
-    <div class="grid preference-grid">${select('visualMode','Visual mode',visualMode(),[['beautiful','Beautiful · glass & depth'],['performance','Performance · simple & fast']])+select('density','Spacing',density(),[['comfortable','Comfortable'],['compact','Compact']])}</div><p class="muted">Beautiful adds frosted navigation and soft depth. Performance uses opaque surfaces and minimal motion.</p>`, '', 'settings-appearance')}
+    <div class="grid preference-grid">${select('density','Spacing',density(),[['comfortable','Comfortable'],['compact','Compact']])}</div>`, '', 'settings-appearance')}
     ${section('Supplier profile',partyGrid('seller',s.seller)+`<div class="grid">${field('seller.tagline','Tagline',s.seller?.tagline)+field('seller.website','Website',s.seller?.website)}
     <label class="field"><span>Logo (PNG or JPEG)</span><input type="file" name="logo" accept="image/png,image/jpeg"></label></div>
     <div class="swatch">${validLogo(s.seller?.logo)?`<img src="${s.seller.logo}" alt="Supplier logo">${btn('remove-logo','Remove logo','subtle')}`:''}</div>`)}
@@ -274,6 +290,7 @@ function settingsView() {
 function render() {
   root.innerHTML = frame({invoices:invoicesView,draft:draftView,customers:customersView,contact:contactView,layout:layoutView,settings:settingsView,services:servicesView,service:serviceView,payments:paymentsView,help:helpView}[state.view]());
   paintDisplayControls();
+  paintColorControls();
   if(state.view==='draft') preview();
   if(state.view==='layout') layoutPreview();
 }
@@ -379,7 +396,7 @@ async function openDraft(base=null) {
 function readSettings(form) {
   const next=clone(state.settings);
   for(const input of form.querySelectorAll('input:not([type=file]):not(#drive-form input),select,textarea')) {
-    if(input.name && !input.matches('[data-appearance], [name=interfaceSize], [name=visualMode], [name=density]')) setByPath(next,input.name,input.type==='checkbox'?input.checked:input.value);
+    if(input.name && !input.matches('[data-appearance], [data-accent-control], [name=interfaceSize], [name=visualMode], [name=density]')) setByPath(next,input.name,input.type==='checkbox'?input.checked:input.value);
   }
   return next;
 }
@@ -424,6 +441,10 @@ root.addEventListener('input', event => {
   const input=event.target;
   const name=input.name;
   if(!name || input.type==='file'||name==='serviceCatalog') return;
+  if(input.matches('[data-accent-control]')) {
+    if(input.type==='color')setAccentColor(input.dataset.accentControl,input.value);
+    return;
+  }
   if(state.fieldErrors[name]){delete state.fieldErrors[name];input.removeAttribute('aria-invalid');input.closest('.field')?.querySelector('.field-error')?.remove();}
   if(name==='draftServiceSearch'){state.draftServiceFilter=input.value;document.querySelector('#service-picker-options').innerHTML=serviceOptions();return;}
   if(name==='serviceSearch'){state.serviceFilter=input.value;document.querySelector('#service-rows').innerHTML=serviceRows();return;}
@@ -473,6 +494,12 @@ root.addEventListener('input', event => {
 });
 root.addEventListener('change', async event => {
   const input=event.target;
+  if(input.matches('[data-accent-control]')) {
+    if(!setAccentColor(input.dataset.accentControl,input.value)) {
+      input.setAttribute('aria-invalid','true');notify('Enter a color such as #086e66.',true);
+    }
+    return;
+  }
   if(input.name==='visualMode'){setVisualMode(input.value);return;}
   if(input.name==='density'){setDensity(input.value);return;}
   if(input.matches('[data-appearance]')) {setAppearance(input.value);return;}
@@ -567,6 +594,10 @@ root.addEventListener('click', async event => {
   if(state.locked && !['panel','prev-page','next-page','zoom','appearance'].includes(action)) return;
   try {
     if(action==='appearance'){setAppearance(button.dataset.appearance);return;}
+    if(action==='toggle-glass'){setVisualMode(visualMode()==='beautiful'?'performance':'beautiful');return;}
+    if(action==='material-mode'){setVisualMode(button.dataset.materialMode);return;}
+    if(action==='accent-preset'){setAccentColor(button.dataset.theme,button.dataset.accentPreset);return;}
+    if(action==='accent-reset'){resetAccentColor(id);return;}
     if(action==='display-settings') {
       if(state.view==='draft') await persistDraft();
       if(state.view!=='settings'){state.view='settings';state.fieldErrors={};render();}

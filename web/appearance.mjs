@@ -1,4 +1,6 @@
 import { smartInterfacePercent } from './display.mjs';
+import { accentTokens, defaultAccents, normalizeColor } from './colors.mjs';
+export { accentPresets } from './colors.mjs';
 
 export const appearanceModes = [
   ['auto', 'Match Windows', 'monitor'],
@@ -10,6 +12,8 @@ export const interfaceSizes = ['smart', '100', '90', '80', '75'];
 const storageKey = 'invoicer-appearance';
 const sizeKey = 'invoicer-interface-size';
 const system = matchMedia('(prefers-color-scheme: dark)');
+const reducedTransparency = matchMedia('(prefers-reduced-transparency: reduce)');
+const forcedColors = matchMedia('(forced-colors: active)');
 const isMode = value => appearanceModes.some(([mode]) => mode === value);
 const saved = localStorage.getItem(storageKey);
 const savedSize = localStorage.getItem(sizeKey);
@@ -22,8 +26,40 @@ let lastZoom = null;
 let sizeRevision = 0;
 let resizeTimer;
 const desktopWindow = globalThis.__TAURI__?.window?.getCurrentWindow();
+const accentKey='invoicer-accent-colors';
+let accents;
+try { accents=JSON.parse(localStorage.getItem(accentKey)??'{}'); } catch { accents={}; }
+accents={light:normalizeColor(accents?.light)??defaultAccents.light,dark:normalizeColor(accents?.dark)??defaultAccents.dark};
+let materialUpdate=Promise.resolve();
+let materialRequest=0;
 
 export const appearanceMode = () => preference;
+export const accentColor = theme => accents[theme];
+export const resolvedTheme = () => preference==='auto'?(system.matches?'dark':'light'):preference;
+export function paintColorControls() {
+  for(const input of document.querySelectorAll('[data-accent-control]')) {
+    input.value=accents[input.dataset.accentControl];input.removeAttribute('aria-invalid');
+  }
+  for(const button of document.querySelectorAll('[data-accent-preset]')) {
+    button.setAttribute('aria-pressed',String(button.dataset.accentPreset===accents[button.dataset.theme]));
+  }
+  for(const preview of document.querySelectorAll('[data-accent-preview]')) {
+    for(const [name,value] of Object.entries(accentTokens(accents[preview.dataset.accentPreview],preview.dataset.accentPreview))) preview.style.setProperty(name,value);
+  }
+  for(const button of document.querySelectorAll('[data-glass-toggle]')) {
+    const glass=visualMode()==='beautiful';button.setAttribute('aria-pressed',String(glass));
+    button.setAttribute('title',glass?'Switch to Performance mode':'Turn on Glass mode');
+    button.querySelector('[data-glass-label]').textContent=glass?'Glass':'Performance';
+  }
+  for(const button of document.querySelectorAll('[data-material-mode]')) button.setAttribute('aria-pressed',String(button.dataset.materialMode===visualMode()));
+}
+export function setAccentColor(theme,value) {
+  const color=normalizeColor(value);
+  if(!['light','dark'].includes(theme)||!color)return false;
+  accents[theme]=color;localStorage.setItem(accentKey,JSON.stringify(accents));
+  paintAppearance();paintColorControls();return true;
+}
+export function resetAccentColor(theme) { return setAccentColor(theme,defaultAccents[theme]); }
 export const interfaceSize = () => size;
 export const interfaceSizeLabel = () => `${size === 'smart' ? 'Smart ✨ · ' : ''}${appliedPercent}%`;
 export function paintDisplayControls() {
@@ -39,6 +75,7 @@ export const density=()=>localStorage.getItem(densityKey)==='compact'?'compact':
 export function setVisualMode(value) {
   if(!['performance','beautiful'].includes(value))return;
   localStorage.setItem(visualKey,value);document.documentElement.dataset.visualMode=value;
+  paintColorControls();syncMaterial();
 }
 export function setDensity(value) {
   if(!['compact','comfortable'].includes(value))return;
@@ -46,7 +83,9 @@ export function setDensity(value) {
 }
 
 function paintAppearance() {
-  document.documentElement.dataset.theme = preference === 'auto' ? (system.matches ? 'dark' : 'light') : preference;
+  const theme=resolvedTheme();
+  document.documentElement.dataset.theme = theme;
+  for(const [name,value] of Object.entries(accentTokens(accents[theme],theme))) document.documentElement.style.setProperty(name,value);
   const icon = document.querySelector('[data-appearance-icon]');
   if (icon) icon.setAttribute('href', '#i-' + appearanceModes.find(([mode]) => mode === preference)[2]);
   for (const control of document.querySelectorAll('[data-appearance]')) {
@@ -56,12 +95,26 @@ function paintAppearance() {
   }
 }
 
+function syncMaterial() {
+  const enabled=visualMode()==='beautiful'&&!reducedTransparency.matches&&!forcedColors.matches;
+  const revision=++materialRequest;
+  materialUpdate=materialUpdate.catch(()=>{}).then(async()=>{
+    if(revision!==materialRequest)return;
+    let native=false;
+    try { if(globalThis.__TAURI__?.core?.invoke) native=await globalThis.__TAURI__.core.invoke('set_window_glass',{enabled}); } catch { /* Frosted app panels remain available. */ }
+    if(revision!==materialRequest)return;
+    document.documentElement.dataset.windowMaterial=enabled&&native?'acrylic':'solid';
+  });
+  return materialUpdate;
+}
+
 function syncWindow() {
   const theme = preference === 'auto' ? null : preference;
   windowUpdate = windowUpdate
     .then(() => desktopWindow?.setTheme(theme))
     .catch(() => {})
-    .then(paintAppearance);
+    .then(paintAppearance)
+    .then(syncMaterial);
   return windowUpdate;
 }
 
@@ -133,7 +186,9 @@ async function initialiseDisplay() {
   }
 }
 
-system.addEventListener('change', paintAppearance);
+system.addEventListener('change',()=>{paintAppearance();syncMaterial();});
+reducedTransparency.addEventListener('change',syncMaterial);
+forcedColors.addEventListener('change',syncMaterial);
 paintAppearance();
 document.documentElement.dataset.visualMode=visualMode();
 document.documentElement.dataset.density=density();

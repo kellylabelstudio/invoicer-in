@@ -110,6 +110,8 @@ jobs:
                 $bounds.Right -gt $monitor.Work.Right -or $bounds.Bottom -gt $monitor.Work.Bottom) {
               throw 'The startup window extends outside the monitor work area.'
             }
+            & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.github/scripts/verify-appearance.ps1' -HandleValue ($app.MainWindowHandle.ToInt64()) -OutputDirectory (Join-Path $env:RUNNER_TEMP 'invoicer-visual-check')
+            if ($LASTEXITCODE -ne 0) { throw 'Native appearance checks failed.' }
             Start-Sleep -Milliseconds 2000
             if (-not $app.CloseMainWindow() -or -not $app.WaitForExit(15000)) {
               throw 'The desktop window did not close after saving its draft.'
@@ -122,6 +124,12 @@ jobs:
           name: invoicer-in-windows-x64
           path: src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: invoicer-in-visual-check
+          path: ${{ runner.temp }}/invoicer-visual-check/*.png
+          if-no-files-found: warn
 
   draft-release:
     if: startsWith(github.ref, 'refs/tags/v')

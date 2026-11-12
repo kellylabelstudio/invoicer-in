@@ -28,15 +28,17 @@ let instance = 0;
 async function appearance({saved={},dark=true,pixels={width:1280,height:680},dpi=1}={}) {
   const values = new Map(Object.entries(saved)), calls = [], events = {};
   const system = {matches:dark,addEventListener(){}};
+  const reduced = {matches:false,addEventListener(){}};
   const desktop = {setTheme:async value=>calls.push(['theme',value]),innerSize:async()=>pixels,scaleFactor:async()=>dpi};
   for (const event of ['onResized','onMoved','onScaleChanged']) desktop[event]=async callback=>{events[event]=callback;return()=>{};};
-  globalThis.matchMedia=()=>system;
+  globalThis.matchMedia=query=>query.includes('prefers-color-scheme')?system:reduced;
   globalThis.localStorage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
-  globalThis.document={documentElement:{dataset:{}},querySelector:()=>null,querySelectorAll:()=>[]};
-  globalThis.__TAURI__={window:{getCurrentWindow:()=>desktop},webview:{getCurrentWebview:()=>({setZoom:async value=>calls.push(['zoom',value])})}};
+  const properties=new Map();
+  globalThis.document={documentElement:{dataset:{},style:{setProperty:(key,value)=>properties.set(key,value)}},querySelector:()=>null,querySelectorAll:()=>[]};
+  globalThis.__TAURI__={core:{invoke:async(command,args)=>{assert.equal(command,'set_window_glass');calls.push(['material',args.enabled]);return args.enabled;}},window:{getCurrentWindow:()=>desktop},webview:{getCurrentWebview:()=>({setZoom:async value=>calls.push(['zoom',value])})}};
   const module=await import(`../web/appearance.mjs?test=${++instance}`);
   await module.displayReady;
-  return {module,values,calls,events,pixels,system,desktop};
+  return {module,values,calls,events,pixels,system,desktop,properties};
 }
 
 test('new workspaces start Light and Smart even when Windows uses Dark', async () => {
@@ -44,7 +46,7 @@ test('new workspaces start Light and Smart even when Windows uses Dark', async (
   assert.equal(module.appearanceMode(),'light');
   assert.equal(module.interfaceSize(),'smart');
   assert.equal(document.documentElement.dataset.theme,'light');
-  assert.deepEqual(calls,[['theme','light'],['zoom',.9]]);
+  assert.deepEqual(calls,[['theme','light'],['material',true],['zoom',.9]]);
 });
 
 test('existing theme and manual size choices survive startup and display changes', async () => {
@@ -53,7 +55,7 @@ test('existing theme and manual size choices survive startup and display changes
   assert.equal(module.interfaceSize(),'80');
   events.onScaleChanged();
   await new Promise(resolve=>setTimeout(resolve,230));
-  assert.deepEqual(calls,[['theme','dark'],['zoom',.8]]);
+  assert.deepEqual(calls,[['theme','dark'],['material',true],['zoom',.8]]);
 });
 
 test('Smart reacts to resize and DPI changes, and manual override stops adaptation', async () => {
@@ -89,4 +91,38 @@ test('Match Windows remains available as an explicit saved preference', async ()
   assert.equal(module.appearanceMode(),'auto');
   assert.equal(document.documentElement.dataset.theme,'dark');
   assert.deepEqual(calls[0],['theme',null]);
+});
+
+test('Light and Dark accents are independent and apply immediately to the active theme', async () => {
+  const {module,properties,values}=await appearance();
+  assert.equal(properties.get('--accent'),'#086e66');
+  module.setAccentColor('light','#285cc4');
+  module.setAccentColor('dark','#ff9bbf');
+  assert.equal(properties.get('--accent'),'#285cc4');
+  module.setAppearance('dark');
+  assert.equal(properties.get('--accent'),'#ff9bbf');
+  module.resetAccentColor('light');
+  assert.equal(properties.get('--accent'),'#ff9bbf');
+  assert.deepEqual(JSON.parse(values.get('invoicer-accent-colors')),{light:'#086e66',dark:'#ff9bbf'});
+  assert.equal(module.setAccentColor('dark','url(evil)'),false);
+  assert.equal(module.accentColor('dark'),'#ff9bbf');
+  await new Promise(resolve=>setTimeout(resolve,0));
+});
+
+test('saved accents survive restart without linking the themes', async () => {
+  const {module,properties}=await appearance({saved:{'invoicer-appearance':'dark','invoicer-accent-colors':'{"light":"#fff","dark":"#66dbc9"}'}});
+  assert.equal(module.accentColor('light'),'#ffffff');
+  assert.equal(properties.get('--accent'),'#66dbc9');
+});
+
+test('Performance clears native glass, while Glass turns it on explicitly', async () => {
+  const {module,calls}=await appearance({saved:{'invoicer-visual-mode':'performance'}});
+  assert.equal(document.documentElement.dataset.windowMaterial,'solid');
+  module.setVisualMode('beautiful');
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.documentElement.dataset.windowMaterial,'acrylic');
+  module.setVisualMode('performance');
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.documentElement.dataset.windowMaterial,'solid');
+  assert.deepEqual(calls.filter(([type])=>type==='material'),[['material',false],['material',true],['material',false]]);
 });
