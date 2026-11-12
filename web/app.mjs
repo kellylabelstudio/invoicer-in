@@ -1,7 +1,7 @@
 import { amount, checkTemplate, clone, csvRegister, defaultTemplate, displayDate, documentPages, escapeHtml as e,
   freightTemplate, makePdf, paymentQrPayload, qrPayload, resizePaper, templateSections, toSvg, validLogo } from './document.mjs';
 import { freightColumns } from './freight.mjs';
-import { appearanceMode, appearanceModes, interfaceSize, interfaceSizes, setAppearance, setInterfaceSize, visualMode, setVisualMode, density, setDensity } from './appearance.mjs';
+import { appearanceMode, appearanceModes, displayReady, interfaceSize, interfaceSizeLabel, interfaceSizes, paintDisplayControls, setAppearance, setInterfaceSize, visualMode, setVisualMode, density, setDensity } from './appearance.mjs';
 import { gstStates } from './gst-states.mjs';
 
 const root = document.querySelector('#app');
@@ -95,7 +95,7 @@ function frame(content) {
     <div class="sidebar-footer">${icon('lock')}<span><strong>India GST workspace</strong><small>Records stored on this PC</small></span></div></aside>
     <main class="workspace"><div class="topbar">
       <div class="crumb"><span>Workspace</span>${icon('chevron')}<strong>${panelTitle()}</strong></div>
-      <div class="topbar-actions"><span class="pill workspace-status">${icon(state.drive.connected?'cloud':'lock')}${state.drive.connected?'Drive connected':'Local workspace'}</span>
+      <div class="topbar-actions"><button type="button" class="display-size-button" data-action="display-settings" title="Change interface size in Settings" aria-label="Interface size settings">${icon('monitor')}<span data-display-size>${interfaceSizeLabel()}</span></button><span class="pill workspace-status">${icon(state.drive.connected?'cloud':'lock')}${state.drive.connected?'Drive connected':'Local workspace'}</span>
         ${appearanceControls(true)}</div>
       </div>${content}</main></div>`;
 }
@@ -247,10 +247,10 @@ function settingsView() {
   return heading('Settings','Manage your business details, GST and desktop preferences.',
     btn('save-settings','Save settings','primary','','save'),'Workspace preferences')+
     `<div id="settings-form" class="panel-list">${setupChecklist(true)}
-    ${section('Appearance',`<div class="appearance-setting"><p class="muted">Choose the computer to follow Windows, the sun for Light, or the moon for Dark.</p>${appearanceControls()}</div>
-    <div class="appearance-setting"><p class="muted">Fit more on smaller screens. The app remembers this setting on this PC.</p>${
-      select('interfaceSize','Interface size',interfaceSize(),interfaceSizes.map(value=>[value,`${value}%${value==='100'?' (default)':''}`]))}</div>
-    <div class="grid preference-grid">${select('visualMode','Visual mode',visualMode(),[['beautiful','Beautiful'],['performance','Performance']])+select('density','Spacing',density(),[['comfortable','Comfortable'],['compact','Compact']])}</div><p class="muted">Beautiful adds subtle depth and motion. Performance uses simple surfaces and minimal motion.</p>`)}
+    ${section('Appearance',`<div class="appearance-setting"><div><h3>Make it feel like yours</h3><p class="muted">Light is the starting theme. Use the computer to follow Windows, the sun for Light, or the moon for Dark.</p></div>${appearanceControls()}</div>
+    <div class="appearance-setting"><div class="display-description"><h3>Smart sizing ✨</h3><p class="muted" data-display-hint></p><small>Your choice is remembered on this PC. Invoice print size stays the same.</small></div>${
+      select('interfaceSize','Interface size',interfaceSize(),interfaceSizes.map(value=>[value,value==='smart'?'Smart ✨ (recommended)':`${value}%`]))}</div>
+    <div class="grid preference-grid">${select('visualMode','Visual mode',visualMode(),[['beautiful','Beautiful · glass & depth'],['performance','Performance · simple & fast']])+select('density','Spacing',density(),[['comfortable','Comfortable'],['compact','Compact']])}</div><p class="muted">Beautiful adds frosted navigation and soft depth. Performance uses opaque surfaces and minimal motion.</p>`, '', 'settings-appearance')}
     ${section('Supplier profile',partyGrid('seller',s.seller)+`<div class="grid">${field('seller.tagline','Tagline',s.seller?.tagline)+field('seller.website','Website',s.seller?.website)}
     <label class="field"><span>Logo (PNG or JPEG)</span><input type="file" name="logo" accept="image/png,image/jpeg"></label></div>
     <div class="swatch">${validLogo(s.seller?.logo)?`<img src="${s.seller.logo}" alt="Supplier logo">${btn('remove-logo','Remove logo','subtle')}`:''}</div>`)}
@@ -273,6 +273,7 @@ function settingsView() {
 }
 function render() {
   root.innerHTML = frame({invoices:invoicesView,draft:draftView,customers:customersView,contact:contactView,layout:layoutView,settings:settingsView,services:servicesView,service:serviceView,payments:paymentsView,help:helpView}[state.view]());
+  paintDisplayControls();
   if(state.view==='draft') preview();
   if(state.view==='layout') layoutPreview();
 }
@@ -566,7 +567,12 @@ root.addEventListener('click', async event => {
   if(state.locked && !['panel','prev-page','next-page','zoom','appearance'].includes(action)) return;
   try {
     if(action==='appearance'){setAppearance(button.dataset.appearance);return;}
-    if(action==='nav') {
+    if(action==='display-settings') {
+      if(state.view==='draft') await persistDraft();
+      if(state.view!=='settings'){state.view='settings';state.fieldErrors={};render();}
+      document.querySelector('#settings-appearance')?.scrollIntoView({block:'start'});
+      document.querySelector('[name="interfaceSize"]')?.focus({preventScroll:true});
+    } else if(action==='nav') {
       if(state.view==='draft') await persistDraft();
       if(state.view==='settings') state.settings=await invoke('get_settings');
       state.view=id;state.fieldErrors={};
@@ -713,6 +719,7 @@ async function start() {
     return;
   }
   try {
+    await displayReady;
     await refresh();
     state.draft=await invoke('get_draft');
     await document.fonts.load('10px "Invoice Sans"');
@@ -735,6 +742,9 @@ async function start() {
       } catch { /* Keep the existing register available during a transient database error. */ }
     },4500);
   } catch(err) {root.innerHTML=`<div class="splash">${e(err.message??err)}</div>`;}
+  finally {
+    await globalThis.__TAURI__?.window?.getCurrentWindow()?.show?.().catch(error=>notify(error.message??error,true));
+  }
 }
 start();
 

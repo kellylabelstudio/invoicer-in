@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod desktop;
+mod display;
 mod drive;
 mod invoice;
 mod store;
@@ -424,16 +425,11 @@ async fn restore_backup(
 #[cfg(windows)]
 fn style_title_bar(window: &tauri::WebviewWindow) {
     use windows_sys::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR,
-        DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
     };
 
     let Ok(hwnd) = window.hwnd() else { return };
-    let attributes = [
-        (DWMWA_CAPTION_COLOR, 0x00130f0f_u32),
-        (DWMWA_TEXT_COLOR, 0x00f8f8f8_u32),
-        (DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND as u32),
-    ];
+    let attributes = [(DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND as u32)];
     for (attribute, value) in attributes {
         // Older Windows versions ignore unsupported DWM attributes.
         unsafe {
@@ -451,11 +447,18 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
                 let _ = window.set_focus();
             }
         }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(error) = desktop::fit_initial_window(&window) {
+                    eprintln!("Could not fit the initial window to the display: {error}");
+                }
+            }
             #[cfg(windows)]
             if let Some(window) = app.get_webview_window("main") {
                 style_title_bar(&window);

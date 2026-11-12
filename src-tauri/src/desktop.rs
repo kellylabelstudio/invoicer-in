@@ -1,5 +1,29 @@
 use crate::invoice::Result;
 
+pub fn fit_initial_window(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    let monitor = window.current_monitor()?.or(window.primary_monitor()?);
+    let Some(monitor) = monitor else {
+        return Ok(());
+    };
+    let work = monitor.work_area();
+    let inner = window.inner_size()?;
+    let outer = window.outer_size()?;
+    if let Some(fit) = crate::display::fit_window(
+        (work.position.x, work.position.y),
+        (work.size.width, work.size.height),
+        monitor.scale_factor(),
+        (
+            outer.width.saturating_sub(inner.width),
+            outer.height.saturating_sub(inner.height),
+        ),
+    ) {
+        window.set_min_size(Some(tauri::PhysicalSize::new(fit.minimum.0, fit.minimum.1)))?;
+        window.set_size(tauri::PhysicalSize::new(fit.size.0, fit.size.1))?;
+        window.set_position(tauri::PhysicalPosition::new(fit.position.0, fit.position.1))?;
+    }
+    Ok(())
+}
+
 #[cfg(windows)]
 pub fn repair_shortcut() -> Result<()> {
     use base64::{engine::general_purpose::STANDARD, Engine};

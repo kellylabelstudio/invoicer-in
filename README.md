@@ -1,17 +1,17 @@
 # Invoicer In
 
-An offline-first Windows desktop invoicing app for Indian GST-registered small businesses. Built by **Kelly Label Studio**. It grew out of an invoicing workflow developed with **SSKT Logistics**. The app uses a Tauri desktop shell, a Rust core, SQLite, and a Fluent-inspired interface.
+An offline-first Windows desktop invoicing app for Indian GST-registered small businesses. Built by **Kelly Label Studio**. It grew out of an invoicing workflow developed with **SSKT Logistics**. The app uses a Tauri desktop shell, a Rust core, SQLite, and an original glass interface designed for Windows.
 
 ## Windows beta
 Extract the beta ZIP and run the setup executable in `Windows/`. Open **Invoicer In** from the Windows Start menu.
 
 
-- Choose the computer, sun or moon in the toolbar to follow Windows, use Light, or use Dark. Dark uses neutral black surfaces, white text and purple accents. Settings also offers Beautiful and Performance modes and Comfortable or Compact spacing.
+- New installations start in **Light**. Choose the computer, sun or moon in the toolbar to follow Windows, use Light, or use Dark. Existing saved choices are respected. Dark uses neutral black surfaces, white text and purple accents. **Beautiful** adds frosted navigation and soft depth; **Performance** uses opaque surfaces and minimal motion. Reduced-motion and reduced-transparency preferences are respected.
 - Reuse saved services and their default descriptions, HSN/SAC, units, rates and prices. Adjust them per invoice.
 - Set a payment due date and record received payments, including partial payments. The register shows outstanding amounts and overdue invoices. Recording payments uses transaction references and prevents overpayment or duplicate submissions.
 - Create domestic GST tax invoices in INR with CGST and SGST, CGST and UTGST, or IGST. Add HSN/SAC, units, discounts, percentage cess, reverse-charge status, and place of supply. The app uses decimal arithmetic and saves the PDF and invoice data together.
 - Search the customer address book, apply billing and dispatch details, or save a new customer from an invoice. Issued invoices retain a snapshot of the addresses and amounts.
-- Set **Interface size** in **Settings → Appearance** to 90%, 80%, or 75% to fit more of the workspace on a small screen. Choose 100% to restore the default size.
+- **Smart ✨ sizing** is the default for new installations. It uses the available window space and Windows DPI scaling, and adjusts when resizing or moving between monitors. The starting window fits the current monitor's work area, excluding the taskbar. The toolbar shows the current percentage and opens **Settings → Appearance**, where 100%, 90%, 80%, and 75% manual overrides and Comfortable or Compact spacing remain available. Existing manual choices are preserved. Display scaling does not change invoice paper size or PDF output.
 - Switch between side-by-side live preview and a full-width form. Choose the freight layout based on the corrected SSKT invoice with Container fields, ruled address boxes, and right-aligned tax totals, or use the standard A4 template. Move and resize fields, adjust table columns and page dimensions, snap to a grid, undo changes, and save named template copies.
 - Export a CSV invoice register, duplicate existing invoices into drafts, and create a local workspace backup.
 - Opt in to automatic Google Drive uploads of newly issued PDFs. Private uploads use a persistent retry queue. Share an individual invoice when you want anyone with its link to view it.
@@ -77,3 +77,5 @@ Use fictional records for these checks before distributing a release.
 ## License
 
 MIT for the app source. The bundled DejaVu Sans font has its own license in `web/assets/`.
+
+The interface uses system fonts and original vector icons and CSS materials. Apple design kit templates, SF Pro, and SF Symbols are not bundled: their licenses do not grant redistribution for this Windows app. See [Apple Design Resources license](https://developer.apple.com/support/downloads/terms/apple-design-resources/Apple-Design-Resources-License-20230621-English.pdf) and [Apple font terms](https://developer.apple.com/fonts/).

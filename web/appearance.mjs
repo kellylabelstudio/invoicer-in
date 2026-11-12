@@ -1,9 +1,11 @@
+import { smartInterfacePercent } from './display.mjs';
+
 export const appearanceModes = [
   ['auto', 'Match Windows', 'monitor'],
   ['light', 'Light', 'sun'],
   ['dark', 'Dark', 'moon']
 ];
-export const interfaceSizes = ['100', '90', '80', '75'];
+export const interfaceSizes = ['smart', '100', '90', '80', '75'];
 
 const storageKey = 'invoicer-appearance';
 const sizeKey = 'invoicer-interface-size';
@@ -11,13 +13,25 @@ const system = matchMedia('(prefers-color-scheme: dark)');
 const isMode = value => appearanceModes.some(([mode]) => mode === value);
 const saved = localStorage.getItem(storageKey);
 const savedSize = localStorage.getItem(sizeKey);
-let preference = isMode(saved) ? saved : 'auto';
-let size = interfaceSizes.includes(savedSize) ? savedSize : '100';
+let preference = isMode(saved) ? saved : 'light';
+let size = interfaceSizes.includes(savedSize) ? savedSize : 'smart';
 let windowUpdate = Promise.resolve();
 let zoomUpdate = Promise.resolve();
+let appliedPercent = 100;
+let lastZoom = null;
+let sizeRevision = 0;
+let resizeTimer;
+const desktopWindow = globalThis.__TAURI__?.window?.getCurrentWindow();
 
 export const appearanceMode = () => preference;
 export const interfaceSize = () => size;
+export const interfaceSizeLabel = () => `${size === 'smart' ? 'Smart ✨ · ' : ''}${appliedPercent}%`;
+export function paintDisplayControls() {
+  for (const node of document.querySelectorAll('[data-display-size]')) node.textContent = interfaceSizeLabel();
+  for (const node of document.querySelectorAll('[data-display-hint]')) node.textContent = size === 'smart'
+    ? `Currently ${appliedPercent}%. Adjusts to the window and Windows display scaling as you resize or move between monitors.`
+    : `Fixed at ${appliedPercent}%. Choose Smart to adjust automatically.`;
+}
 const visualKey='invoicer-visual-mode';
 const densityKey='invoicer-density';
 export const visualMode=()=>localStorage.getItem(visualKey)==='performance'?'performance':'beautiful';
@@ -45,9 +59,10 @@ function paintAppearance() {
 function syncWindow() {
   const theme = preference === 'auto' ? null : preference;
   windowUpdate = windowUpdate
-    .then(() => globalThis.__TAURI__?.window?.getCurrentWindow()?.setTheme(theme))
+    .then(() => desktopWindow?.setTheme(theme))
     .catch(() => {})
     .then(paintAppearance);
+  return windowUpdate;
 }
 
 export function setAppearance(value) {
@@ -58,24 +73,68 @@ export function setAppearance(value) {
   syncWindow();
 }
 
-function syncZoom(value) {
-  zoomUpdate = zoomUpdate.catch(() => {}).then(() => {
+function syncZoom(percent) {
+  zoomUpdate = zoomUpdate.catch(() => {}).then(async () => {
+    if (lastZoom === percent) return;
     const webview = globalThis.__TAURI__?.webview?.getCurrentWebview();
-    return webview?.setZoom(Number(value) / 100);
+    if (webview) await webview.setZoom(percent / 100);
+    lastZoom = percent;
+    appliedPercent = percent;
+    paintDisplayControls();
   });
   return zoomUpdate;
 }
 
+async function smartPercent() {
+  if (!desktopWindow?.innerSize || !desktopWindow?.scaleFactor) return 100;
+  const [pixels, scaleFactor] = await Promise.all([desktopWindow.innerSize(), desktopWindow.scaleFactor()]);
+  return smartInterfacePercent(pixels, scaleFactor);
+}
+
 export async function setInterfaceSize(value) {
   if (!interfaceSizes.includes(value)) return;
-  await syncZoom(value);
-  localStorage.setItem(sizeKey, value);
+  const previous = size, revision = ++sizeRevision;
   size = value;
+  try {
+    const percent = value === 'smart' ? await smartPercent() : Number(value);
+    if (revision !== sizeRevision) return;
+    await syncZoom(percent);
+    if (revision !== sizeRevision) return;
+    localStorage.setItem(sizeKey, value);
+    paintDisplayControls();
+  } catch (error) {
+    if (revision === sizeRevision) size = previous;
+    throw error;
+  }
+}
+
+async function refreshSmartSize() {
+  if (size !== 'smart') return;
+  const revision = ++sizeRevision;
+  try {
+    const percent = await smartPercent();
+    if (revision === sizeRevision && size === 'smart') await syncZoom(percent);
+  } catch {
+    // Keep the last working scale if Windows temporarily cannot report the display.
+  }
+}
+
+function queueSmartSize() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(refreshSmartSize, 180);
+}
+
+async function initialiseDisplay() {
+  await syncWindow();
+  if (size === 'smart') await refreshSmartSize();
+  else await syncZoom(Number(size));
+  for (const name of ['onResized', 'onMoved', 'onScaleChanged']) {
+    try { await desktopWindow?.[name]?.(queueSmartSize); } catch { /* Scaling remains available in Settings. */ }
+  }
 }
 
 system.addEventListener('change', paintAppearance);
 paintAppearance();
 document.documentElement.dataset.visualMode=visualMode();
 document.documentElement.dataset.density=density();
-syncWindow();
-if (size !== '100') syncZoom(size).catch(() => {});
+export const displayReady = initialiseDisplay().catch(() => {});
